@@ -7,7 +7,7 @@ Author:
 import layers
 import torch
 import torch.nn as nn
-from transformers import BertTokenizer
+from transformers import BertTokenizer, BertModel
 
 
 class BiDAF(nn.Module):
@@ -82,9 +82,10 @@ class PreTrainedBERT(nn.Module):
     """
     def __init__(self, word_vectors, hidden_size, drop_prob=0.):
         super(PreTrainedBERT, self).__init__()
-        self.emb = layers.Embedding(word_vectors=word_vectors,
-                                    hidden_size=hidden_size,
-                                    drop_prob=drop_prob)
+        self.BERT = BertModel.from_pretrained('bert-base-uncased')
+        self.start_weights = nn.Linear(320, 320)
+        self.end_weights = nn.Linear(320, 320)
+        softmax = nn.Softmax(dim=1)
 
     def forward(self, b_contexts, b_questions):
         tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
@@ -93,15 +94,19 @@ class PreTrainedBERT(nn.Module):
                         sequence_tuples,                      # Context to encode.
                         add_special_tokens = True, # Add '[CLS]' and '[SEP]'
                         max_length = 320,           # Pad & truncate all sentences.
-                        padding = 'max_length',
+                        pad_to_max_length = True,
                         return_attention_mask = True,   # Construct attn. masks.
                         return_tensors = 'pt',     # Return pytorch tensors.
                    )
         # print(encoded_dict.keys())
         input_ids = encoded_dict['input_ids']
         attention_mask = encoded_dict['attention_mask']
+        bert_output = self.BERT(input_ids, attention_mask)
+        last_hidden_state = bert_output['last_hidden_state']
         print(input_ids.shape)
         print(attention_mask.shape)
+        print(last_hidden_state.shape)
+
         exit()
         # print(cw_idxs.shape) 
         out = (cw_idxs, qw_idxs)
