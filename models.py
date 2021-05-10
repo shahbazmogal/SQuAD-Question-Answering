@@ -7,6 +7,7 @@ Author:
 import layers
 import torch
 import torch.nn as nn
+from transformers import BertTokenizer
 
 
 class BiDAF(nn.Module):
@@ -68,5 +69,57 @@ class BiDAF(nn.Module):
         mod = self.mod(att, c_len)        # (batch_size, c_len, 2 * hidden_size)
 
         out = self.out(att, mod, c_mask)  # 2 tensors, each (batch_size, c_len)
+
+        return out
+
+class PreTrainedBERT(nn.Module):
+    """Baseline PreTrainedBERT model for SQuAD.
+
+    Args:
+        word_vectors (torch.Tensor): Pre-trained word vectors.
+        hidden_size (int): Number of features in the hidden state at each layer.
+        drop_prob (float): Dropout probability.
+    """
+    def __init__(self, word_vectors, hidden_size, drop_prob=0.):
+        super(PreTrainedBERT, self).__init__()
+        self.emb = layers.Embedding(word_vectors=word_vectors,
+                                    hidden_size=hidden_size,
+                                    drop_prob=drop_prob)
+
+    def forward(self, b_contexts, b_questions):
+        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+        sequence_tuples = zip(b_contexts, b_questions)
+        encoded_dict = tokenizer.batch_encode_plus(
+                        sequence_tuples,                      # Context to encode.
+                        add_special_tokens = True, # Add '[CLS]' and '[SEP]'
+                        max_length = 320,           # Pad & truncate all sentences.
+                        padding = 'max_length',
+                        return_attention_mask = True,   # Construct attn. masks.
+                        return_tensors = 'pt',     # Return pytorch tensors.
+                   )
+        # print(encoded_dict.keys())
+        input_ids = encoded_dict['input_ids']
+        attention_mask = encoded_dict['attention_mask']
+        print(input_ids.shape)
+        print(attention_mask.shape)
+        exit()
+        # print(cw_idxs.shape) 
+        out = (cw_idxs, qw_idxs)
+        # c_mask = torch.zeros_like(cw_idxs) != cw_idxs
+        # q_mask = torch.zeros_like(qw_idxs) != qw_idxs
+        # c_len, q_len = c_mask.sum(-1), q_mask.sum(-1)
+
+        # c_emb = self.emb(cw_idxs)         # (batch_size, c_len, hidden_size)
+        # q_emb = self.emb(qw_idxs)         # (batch_size, q_len, hidden_size)
+
+        # c_enc = self.enc(c_emb, c_len)    # (batch_size, c_len, 2 * hidden_size)
+        # q_enc = self.enc(q_emb, q_len)    # (batch_size, q_len, 2 * hidden_size)
+
+        # att = self.att(c_enc, q_enc,
+        #                c_mask, q_mask)    # (batch_size, c_len, 8 * hidden_size)
+
+        # mod = self.mod(att, c_len)        # (batch_size, c_len, 2 * hidden_size)
+
+        # out = self.out(att, mod, c_mask)  # 2 tensors, each (batch_size, c_len)
 
         return out

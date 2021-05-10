@@ -191,6 +191,12 @@ def add_common_args(parser):
     parser.add_argument('--char_emb_file',
                         type=str,
                         default='./data/char_emb.json')
+    parser.add_argument('--train_examples_file',
+                        type=str,
+                        default='./data/train_examples.json')
+    parser.add_argument('--dev_examples_file',
+                        type=str,
+                        default='./data/dev_examples.json')
     parser.add_argument('--train_eval_file',
                         type=str,
                         default='./data/train_eval.json')

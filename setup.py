@@ -130,7 +130,12 @@ def process_file(filename, data_type, word_counter, char_counter):
                         y1, y2 = answer_span[0], answer_span[-1]
                         y1s.append(y1)
                         y2s.append(y2)
-                    example = {"context_tokens": context_tokens,
+                    example = {"context": context,
+                        "context_tokens": context_tokens,
+                                                "question": ques,
+                                                 "spans": spans,
+                                                 "answers": answer_texts,
+                                                 "uuid": qa["id"],
                                "context_chars": context_chars,
                                "ques_tokens": ques_tokens,
                                "ques_chars": ques_chars,
@@ -271,6 +276,9 @@ def build_features(args, examples, data_type, out_file, word2idx_dict, char2idx_
     y1s = []
     y2s = []
     ids = []
+    contexts = []
+    questions = []
+
     for n, example in tqdm(enumerate(examples)):
         total_ += 1
 
@@ -321,12 +329,15 @@ def build_features(args, examples, data_type, out_file, word2idx_dict, char2idx_
             start, end = example["y1s"][-1], example["y2s"][-1]
         else:
             start, end = -1, -1
-
+        contexts.append(example["context"])
+        questions.append(example["question"])
         y1s.append(start)
         y2s.append(end)
         ids.append(example["id"])
 
     np.savez(out_file,
+            contexts = np.array(contexts),
+            questions = np.array(questions),
              context_idxs=np.array(context_idxs),
              context_char_idxs=np.array(context_char_idxs),
              ques_idxs=np.array(ques_idxs),
