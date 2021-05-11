@@ -30,6 +30,8 @@ def main(args):
     log = util.get_logger(args.save_dir, args.name)
     tbx = SummaryWriter(args.save_dir)
     device, args.gpu_ids = util.get_available_devices()
+    # TODO: Make this an arg, there's a copy in util also
+    BERT_max_sequence_length = 320
     log.info(f'Args: {dumps(vars(args), indent=4, sort_keys=True)}')
     args.batch_size *= max(1, len(args.gpu_ids))
 
@@ -106,12 +108,12 @@ def main(args):
 
                 # Forward
                 input_ids = input_ids.to(device)
-                print(input_ids.shape)
                 attention_mask = attention_mask.to(device)
                 log_p1, log_p2 = model(input_ids, attention_mask)
                 # continue
                 y1, y2 = y1.to(device), y2.to(device)
-                print("y1:", y1.shape)
+                # Avoid NLL_Loss error when value > N_class, ie, longer paragraph
+                y1[y1 > BERT_max_sequence_length], y2[y2 > BERT_max_sequence_length] = BERT_max_sequence_length, BERT_max_sequence_length
                 loss = F.nll_loss(log_p1, y1) + F.nll_loss(log_p2, y2)
                 loss_val = loss.item()
 
