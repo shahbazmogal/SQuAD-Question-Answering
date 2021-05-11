@@ -82,14 +82,19 @@ class PreTrainedBERT(nn.Module):
     """
     def __init__(self):
         super(PreTrainedBERT, self).__init__()
-        self.BERT = BertModel.from_pretrained('bert-base-uncased')
-        self.start_weights = nn.Linear(320, 320)
-        self.end_weights = nn.Linear(320, 320)
-        softmax = nn.Softmax(dim=1)
+        self.BERT = BertModel.from_pretrained('bert-base-uncased',output_hidden_states=True)
+        self.ffnn_nodes = 32
+        # Converts tensor from size (b, max_len, 768) to (b, max_len, whatever size you choose)
+        self.start_token_weights_1 = nn.Linear(768, self.ffnn_nodes)
+        self.start_token_weights_2 = nn.Linear(self.ffnn_nodes, 1)
+        self.end_token_weights_1 = nn.Linear(768, self.ffnn_nodes)
+        self.end_token_weights_2 = nn.Linear(self.ffnn_nodes, 1)
+        self.log_softmax = nn.LogSoftmax(dim=1)
 
     def forward(self, b_contexts, b_questions):
         tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
         sequence_tuples = zip(b_contexts, b_questions)
+        # print(b_contexts[0], b_questions[0])
         encoded_dict = tokenizer.batch_encode_plus(
                         sequence_tuples,                      # Context to encode.
                         add_special_tokens = True, # Add '[CLS]' and '[SEP]'
@@ -98,33 +103,14 @@ class PreTrainedBERT(nn.Module):
                         return_attention_mask = True,   # Construct attn. masks.
                         return_tensors = 'pt',     # Return pytorch tensors.
                    )
-        # print(encoded_dict.keys())
         input_ids = encoded_dict['input_ids']
         attention_mask = encoded_dict['attention_mask']
         bert_output = self.BERT(input_ids, attention_mask)
-        last_hidden_state = bert_output['last_hidden_state']
-        print(input_ids.shape)
-        print(attention_mask.shape)
-        print(last_hidden_state.shape)
-
-        exit()
-        # print(cw_idxs.shape) 
-        out = (cw_idxs, qw_idxs)
-        # c_mask = torch.zeros_like(cw_idxs) != cw_idxs
-        # q_mask = torch.zeros_like(qw_idxs) != qw_idxs
-        # c_len, q_len = c_mask.sum(-1), q_mask.sum(-1)
-
-        # c_emb = self.emb(cw_idxs)         # (batch_size, c_len, hidden_size)
-        # q_emb = self.emb(qw_idxs)         # (batch_size, q_len, hidden_size)
-
-        # c_enc = self.enc(c_emb, c_len)    # (batch_size, c_len, 2 * hidden_size)
-        # q_enc = self.enc(q_emb, q_len)    # (batch_size, q_len, 2 * hidden_size)
-
-        # att = self.att(c_enc, q_enc,
-        #                c_mask, q_mask)    # (batch_size, c_len, 8 * hidden_size)
-
-        # mod = self.mod(att, c_len)        # (batch_size, c_len, 2 * hidden_size)
-
-        # out = self.out(att, mod, c_mask)  # 2 tensors, each (batch_size, c_len)
-
+        # pooled_output = bert_output['pooler_output']
+        hidden_state = bert_output['hidden_states'][-2]
+        start_ffnn_output = self.start_token_weights_2(self.start_token_weights_1(hidden_state))
+        end_ffnn_output = self.end_token_weights_2(self.end_token_weights_1(hidden_state))
+        print(start_ffnn_output.shape)
+        log_p1, log_p2 = self.log_softmax(start_ffnn_output), self.log_softmax(end_ffnn_output)
+        out = (torch.squeeze(log_p1), torch.squeeze(log_p2))
         return out

@@ -108,6 +108,8 @@ def main(args):
                 log_p1, log_p2 = model(context, question)
                 # continue
                 y1, y2 = y1.to(device), y2.to(device)
+                print("log_p1:", log_p1)
+                print("y1:", y1)
                 loss = F.nll_loss(log_p1, y1) + F.nll_loss(log_p2, y2)
                 loss_val = loss.item()
 
