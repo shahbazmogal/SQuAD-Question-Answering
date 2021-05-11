@@ -176,6 +176,7 @@ def main(args):
 
 
 def evaluate(model, data_loader, device, eval_file, max_len, use_squad_v2):
+    BERT_max_sequence_length = 320
     nll_meter = util.AverageMeter()
 
     model.eval()
@@ -195,6 +196,7 @@ def evaluate(model, data_loader, device, eval_file, max_len, use_squad_v2):
             input_ids, attention_mask = input_ids.to(device), attention_mask.to(device)
             log_p1, log_p2 = model(input_ids, attention_mask)
             y1, y2 = y1.to(device), y2.to(device)
+            y1[y1 > BERT_max_sequence_length - 1], y2[y2 > BERT_max_sequence_length - 1] = BERT_max_sequence_length - 1, BERT_max_sequence_length - 1
             loss = F.nll_loss(log_p1, y1) + F.nll_loss(log_p2, y2)
             nll_meter.update(loss.item(), batch_size)
 
