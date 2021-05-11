@@ -114,7 +114,8 @@ def main(args):
                 # continue
                 y1, y2 = y1.to(device), y2.to(device)
                 # Avoid NLL_Loss error when value > N_class, ie, longer paragraph
-                y1[y1 > BERT_max_sequence_length], y2[y2 > BERT_max_sequence_length] = BERT_max_sequence_length, BERT_max_sequence_length
+                y1[y1 > BERT_max_sequence_length - 1], y2[y2 > BERT_max_sequence_length - 1] = BERT_max_sequence_length - 1, BERT_max_sequence_length - 1
+                print(y1)
                 loss = F.nll_loss(log_p1, y1) + F.nll_loss(log_p2, y2)
                 print("Calculated loss")
                 loss_val = loss.item()
