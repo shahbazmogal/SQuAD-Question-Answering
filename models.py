@@ -84,7 +84,7 @@ class PreTrainedBERT(nn.Module):
         super(PreTrainedBERT, self).__init__()
         self.device = device
         self.BERT = BertModel.from_pretrained('bert-base-uncased',output_hidden_states=True).to(self.device)
-        self.ffnn_nodes = 32
+        self.ffnn_nodes = 128
         # Converts tensor from size (b, max_len, 768) to (b, max_len, whatever size you choose)
         self.start_token_weights_1 = nn.Linear(768, self.ffnn_nodes)
         self.start_token_weights_2 = nn.Linear(self.ffnn_nodes, 1)
@@ -93,12 +93,17 @@ class PreTrainedBERT(nn.Module):
         self.log_softmax = nn.LogSoftmax(dim=1)
 
     def forward(self, input_ids, attention_mask):
+        # print("Started forward pass")
         bert_output = self.BERT(input_ids, attention_mask)
+        # print("Loaded BERT embeddings")
         # pooled_output = bert_output['pooler_output']
         hidden_state = bert_output['hidden_states'][-2]
         start_ffnn_output = self.start_token_weights_2(self.start_token_weights_1(hidden_state))
+        # print("Ran start ffnn")
         end_ffnn_output = self.end_token_weights_2(self.end_token_weights_1(hidden_state))
-        print(start_ffnn_output.shape)
+        # print("Ran end ffnn")
+        # print(start_ffnn_output.shape)
         log_p1, log_p2 = self.log_softmax(start_ffnn_output), self.log_softmax(end_ffnn_output)
+        # print("Ran softmaxes")
         out = (torch.squeeze(log_p1), torch.squeeze(log_p2))
         return out
