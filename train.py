@@ -109,30 +109,30 @@ def main(args):
                 # Forward
                 input_ids = input_ids.to(device)
                 attention_mask = attention_mask.to(device)
-                print("Running inference")
+                # print("Running inference")
                 log_p1, log_p2 = model(input_ids, attention_mask)
-                print("Finished inference")
+                # print("Finished inference")
                 # continue
                 y1, y2 = y1.to(device), y2.to(device)
                 # Avoid NLL_Loss error when value > N_class, ie, longer paragraph
                 y1[y1 > BERT_max_sequence_length - 1], y2[y2 > BERT_max_sequence_length - 1] = BERT_max_sequence_length - 1, BERT_max_sequence_length - 1
-                print(y1)
+                # print(y1)
                 loss = F.nll_loss(log_p1, y1) + F.nll_loss(log_p2, y2)
-                print("Calculated loss")
+                # print("Calculated loss")
                 loss_val = loss.item()
-                print("Copied loss")
+                # print("Copied loss")
 
                 # Backward
                 # Added below myself, confirm
                 model.zero_grad()
                 loss.backward()
-                print("Finished backprop")
+                # print("Finished backprop")
                 nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
                 optimizer.step()
                 scheduler.step(step // batch_size)
-                print("Calculated scheduler step")
+                # print("Calculated scheduler step")
                 ema(model, step // batch_size)
-                print("Calculated ema step")
+                # print("Calculated ema step")
 
                 # Log info
                 print("Logging info")
