@@ -136,12 +136,7 @@ def collate_fn(examples):
     encoded_dict = tokenizer.batch_encode_plus(
                         sequence_tuples,                      # Context to encode.
                         add_special_tokens = True, # Add '[CLS]' and '[SEP]'
-<<<<<<< HEAD
                         max_length = BERT_max_sequence_length,           # Pad & truncate all sentences.
-=======
-                        # max_length = 320,           # Pad & truncate all sentences.
-                        max_length = 512,           # Pad & truncate all sentences.
->>>>>>> dd0b09c79924dbb45b8c5afef111994a1b3a60bc
                         padding = 'max_length',
                         truncation=True,
                         return_attention_mask = True,   # Construct attn. masks.
