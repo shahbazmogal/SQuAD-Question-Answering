@@ -47,26 +47,26 @@ class SQuAD(data.Dataset):
         dataset = np.load(data_path)
         self.contexts = dataset['contexts']
         self.questions = dataset['questions']
-        self.context_idxs = torch.from_numpy(dataset['context_idxs']).long()
-        self.context_char_idxs = torch.from_numpy(dataset['context_char_idxs']).long()
-        self.question_idxs = torch.from_numpy(dataset['ques_idxs']).long()
-        self.question_char_idxs = torch.from_numpy(dataset['ques_char_idxs']).long()
+        # self.context_idxs = torch.from_numpy(dataset['context_idxs']).long()
+        # self.context_char_idxs = torch.from_numpy(dataset['context_char_idxs']).long()
+        # self.question_idxs = torch.from_numpy(dataset['ques_idxs']).long()
+        # self.question_char_idxs = torch.from_numpy(dataset['ques_char_idxs']).long()
         self.y1s = torch.from_numpy(dataset['y1s']).long()
         self.y2s = torch.from_numpy(dataset['y2s']).long()
 
-        if use_v2:
+        # if use_v2:
             # SQuAD 2.0: Use index 0 for no-answer token (token 1 = OOV)
-            batch_size, c_len, w_len = self.context_char_idxs.size()
-            ones = torch.ones((batch_size, 1), dtype=torch.int64)
-            self.context_idxs = torch.cat((ones, self.context_idxs), dim=1)
-            self.question_idxs = torch.cat((ones, self.question_idxs), dim=1)
+            # batch_size, c_len, w_len = self.context_char_idxs.size()
+            # ones = torch.ones((batch_size, 1), dtype=torch.int64)
+            # self.context_idxs = torch.cat((ones, self.context_idxs), dim=1)
+            # self.question_idxs = torch.cat((ones, self.question_idxs), dim=1)
 
-            ones = torch.ones((batch_size, 1, w_len), dtype=torch.int64)
-            self.context_char_idxs = torch.cat((ones, self.context_char_idxs), dim=1)
-            self.question_char_idxs = torch.cat((ones, self.question_char_idxs), dim=1)
+            # ones = torch.ones((batch_size, 1, w_len), dtype=torch.int64)
+            # self.context_char_idxs = torch.cat((ones, self.context_char_idxs), dim=1)
+            # self.question_char_idxs = torch.cat((ones, self.question_char_idxs), dim=1)
 
-            self.y1s += 1
-            self.y2s += 1
+            # self.y1s += 1
+            # self.y2s += 1
 
         # SQuAD 1.1: Ignore no-answer examples
         self.ids = torch.from_numpy(dataset['ids']).long()
@@ -77,10 +77,10 @@ class SQuAD(data.Dataset):
         idx = self.valid_idxs[idx]
         example = (self.contexts[idx],
                     self.questions[idx],
-                    self.context_idxs[idx],
-                   self.context_char_idxs[idx],
-                   self.question_idxs[idx],
-                   self.question_char_idxs[idx],
+                    # self.context_idxs[idx],
+                #    self.context_char_idxs[idx],
+                #    self.question_idxs[idx],
+                #    self.question_char_idxs[idx],
                    self.y1s[idx],
                    self.y2s[idx],
                    self.ids[idx])
@@ -128,23 +128,20 @@ def collate_fn(examples):
         return padded
 
     # Group by tensor type
-    contexts, questions, context_idxs, context_char_idxs, \
-        question_idxs, question_char_idxs, \
-        y1s, y2s, ids = zip(*examples)
+    contexts, questions, y1s, y2s, ids = zip(*examples)
 
     # Merge into batch tensors
     # contexts = merge_1d(context_idxs)
     # questions = merge_1d(context_idxs)
-    context_idxs = merge_1d(context_idxs)
-    context_char_idxs = merge_2d(context_char_idxs)
-    question_idxs = merge_1d(question_idxs)
-    question_char_idxs = merge_2d(question_char_idxs)
+    # context_idxs = merge_1d(context_idxs)
+    # context_char_idxs = merge_2d(context_char_idxs)
+    # question_idxs = merge_1d(question_idxs)
+    # question_char_idxs = merge_2d(question_char_idxs)
     y1s = merge_0d(y1s)
     y2s = merge_0d(y2s)
     ids = merge_0d(ids)
 
-    return (contexts, questions, context_idxs, context_char_idxs,
-            question_idxs, question_char_idxs,
+    return (contexts, questions,
             y1s, y2s, ids)
 
 

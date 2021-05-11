@@ -41,17 +41,15 @@ def main(args):
     torch.cuda.manual_seed_all(args.seed)
 
     # Get embeddings
-    log.info('Loading embeddings...')
-    word_vectors = util.torch_from_json(args.word_emb_file)
+    # log.info('Loading embeddings...')
+    # word_vectors = util.torch_from_json(args.word_emb_file)
 
     # Get model
     log.info('Building model...')
     # model = BiDAF(word_vectors=word_vectors,
     #               hidden_size=args.hidden_size,
     #               drop_prob=args.drop_prob)
-    model = PreTrainedBERT(word_vectors=word_vectors,
-                  hidden_size=args.hidden_size,
-                  drop_prob=args.drop_prob)
+    model = PreTrainedBERT()
     model = nn.DataParallel(model, args.gpu_ids)
     if args.load_path:
         log.info(f'Loading checkpoint from {args.load_path}...')
@@ -82,12 +80,12 @@ def main(args):
                                    shuffle=True,
                                    num_workers=args.num_workers,
                                    collate_fn=collate_fn)
-    dev_dataset = SQuAD(args.dev_record_file, args.use_squad_v2)
-    dev_loader = data.DataLoader(dev_dataset,
-                                 batch_size=args.batch_size,
-                                 shuffle=False,
-                                 num_workers=args.num_workers,
-                                 collate_fn=collate_fn)
+    # dev_dataset = SQuAD(args.dev_record_file, args.use_squad_v2)
+    # dev_loader = data.DataLoader(dev_dataset,
+    #                              batch_size=args.batch_size,
+    #                              shuffle=False,
+    #                              num_workers=args.num_workers,
+    #                              collate_fn=collate_fn)
 
     # Train
     log.info('Training...')
@@ -98,16 +96,17 @@ def main(args):
         log.info(f'Starting epoch {epoch}...')
         with torch.enable_grad(), \
                 tqdm(total=len(train_loader.dataset)) as progress_bar:
-            for context, question, cw_idxs, cc_idxs, qw_idxs, qc_idxs, y1, y2, ids in train_loader:
+            for context, question, y1, y2, ids in train_loader:
                 # Setup for forward
-                cw_idxs = cw_idxs.to(device)
-                qw_idxs = qw_idxs.to(device)
-                batch_size = cw_idxs.size(0)
+                # cw_idxs = cw_idxs.to(device)
+                # qw_idxs = qw_idxs.to(device)
+                # batch_size = cw_idxs.size(0)
+                batch_size = 64
                 optimizer.zero_grad()
 
                 # Forward
                 log_p1, log_p2 = model(context, question)
-                continue
+                # continue
                 y1, y2 = y1.to(device), y2.to(device)
                 loss = F.nll_loss(log_p1, y1) + F.nll_loss(log_p2, y2)
                 loss_val = loss.item()

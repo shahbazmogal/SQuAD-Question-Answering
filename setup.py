@@ -338,10 +338,11 @@ def build_features(args, examples, data_type, out_file, word2idx_dict, char2idx_
     np.savez(out_file,
             contexts = np.array(contexts),
             questions = np.array(questions),
-             context_idxs=np.array(context_idxs),
-             context_char_idxs=np.array(context_char_idxs),
-             ques_idxs=np.array(ques_idxs),
-             ques_char_idxs=np.array(ques_char_idxs),
+            # Commented out because not required by BERT
+            #  context_idxs=np.array(context_idxs),
+            #  context_char_idxs=np.array(context_char_idxs),
+            #  ques_idxs=np.array(ques_idxs),
+            #  ques_char_idxs=np.array(ques_char_idxs),
              y1s=np.array(y1s),
              y2s=np.array(y2s),
              ids=np.array(ids))

@@ -80,7 +80,7 @@ class PreTrainedBERT(nn.Module):
         hidden_size (int): Number of features in the hidden state at each layer.
         drop_prob (float): Dropout probability.
     """
-    def __init__(self, word_vectors, hidden_size, drop_prob=0.):
+    def __init__(self):
         super(PreTrainedBERT, self).__init__()
         self.BERT = BertModel.from_pretrained('bert-base-uncased')
         self.start_weights = nn.Linear(320, 320)
