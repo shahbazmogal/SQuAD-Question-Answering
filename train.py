@@ -49,7 +49,7 @@ def main(args):
     # model = BiDAF(word_vectors=word_vectors,
     #               hidden_size=args.hidden_size,
     #               drop_prob=args.drop_prob)
-    model = PreTrainedBERT()
+    model = PreTrainedBERT(device)
     model = nn.DataParallel(model, args.gpu_ids)
     if args.load_path:
         log.info(f'Loading checkpoint from {args.load_path}...')
@@ -96,7 +96,7 @@ def main(args):
         log.info(f'Starting epoch {epoch}...')
         with torch.enable_grad(), \
                 tqdm(total=len(train_loader.dataset)) as progress_bar:
-            for context, question, y1, y2, ids in train_loader:
+            for input_ids, attention_mask, y1, y2, ids in train_loader:
                 # Setup for forward
                 # cw_idxs = cw_idxs.to(device)
                 # qw_idxs = qw_idxs.to(device)
@@ -105,11 +105,13 @@ def main(args):
                 optimizer.zero_grad()
 
                 # Forward
-                log_p1, log_p2 = model(context, question)
+                input_ids = input_ids.to(device)
+                print(input_ids.shape)
+                attention_mask = attention_mask.to(device)
+                log_p1, log_p2 = model(input_ids, attention_mask)
                 # continue
                 y1, y2 = y1.to(device), y2.to(device)
-                print("log_p1:", log_p1)
-                print("y1:", y1)
+                print("y1:", y1.shape)
                 loss = F.nll_loss(log_p1, y1) + F.nll_loss(log_p2, y2)
                 loss_val = loss.item()
 

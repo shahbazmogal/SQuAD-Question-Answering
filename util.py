@@ -15,6 +15,7 @@ import torch.utils.data as data
 import tqdm
 import numpy as np
 import ujson as json
+from transformers import BertTokenizer
 
 from collections import Counter
 
@@ -127,12 +128,25 @@ def collate_fn(examples):
             padded[i, :height, :width] = seq[:height, :width]
         return padded
 
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
     # Group by tensor type
     contexts, questions, y1s, y2s, ids = zip(*examples)
+    sequence_tuples = zip(contexts, questions)
+    encoded_dict = tokenizer.batch_encode_plus(
+                        sequence_tuples,                      # Context to encode.
+                        add_special_tokens = True, # Add '[CLS]' and '[SEP]'
+                        max_length = 320,           # Pad & truncate all sentences.
+                        padding = 'max_length',
+                        truncation=True,
+                        return_attention_mask = True,   # Construct attn. masks.
+                        return_tensors = 'pt',     # Return pytorch tensors.
+                   )
+    input_ids = torch.as_tensor(encoded_dict['input_ids'])
+    attention_mask = torch.as_tensor(encoded_dict['attention_mask'])
 
     # Merge into batch tensors
-    # contexts = merge_1d(context_idxs)
-    # questions = merge_1d(context_idxs)
+    # contexts = torch.as_tensor(contexts)
+    # questions = torch.as_tensor(questions)
     # context_idxs = merge_1d(context_idxs)
     # context_char_idxs = merge_2d(context_char_idxs)
     # question_idxs = merge_1d(question_idxs)
@@ -141,7 +155,7 @@ def collate_fn(examples):
     y2s = merge_0d(y2s)
     ids = merge_0d(ids)
 
-    return (contexts, questions,
+    return (input_ids, attention_mask,
             y1s, y2s, ids)
 
 

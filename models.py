@@ -7,7 +7,7 @@ Author:
 import layers
 import torch
 import torch.nn as nn
-from transformers import BertTokenizer, BertModel
+from transformers import BertModel
 
 
 class BiDAF(nn.Module):
@@ -80,9 +80,10 @@ class PreTrainedBERT(nn.Module):
         hidden_size (int): Number of features in the hidden state at each layer.
         drop_prob (float): Dropout probability.
     """
-    def __init__(self):
+    def __init__(self, device):
         super(PreTrainedBERT, self).__init__()
-        self.BERT = BertModel.from_pretrained('bert-base-uncased',output_hidden_states=True)
+        self.device = device
+        self.BERT = BertModel.from_pretrained('bert-base-uncased',output_hidden_states=True).to(self.device)
         self.ffnn_nodes = 32
         # Converts tensor from size (b, max_len, 768) to (b, max_len, whatever size you choose)
         self.start_token_weights_1 = nn.Linear(768, self.ffnn_nodes)
@@ -91,20 +92,7 @@ class PreTrainedBERT(nn.Module):
         self.end_token_weights_2 = nn.Linear(self.ffnn_nodes, 1)
         self.log_softmax = nn.LogSoftmax(dim=1)
 
-    def forward(self, b_contexts, b_questions):
-        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
-        sequence_tuples = zip(b_contexts, b_questions)
-        # print(b_contexts[0], b_questions[0])
-        encoded_dict = tokenizer.batch_encode_plus(
-                        sequence_tuples,                      # Context to encode.
-                        add_special_tokens = True, # Add '[CLS]' and '[SEP]'
-                        max_length = 320,           # Pad & truncate all sentences.
-                        pad_to_max_length = True,
-                        return_attention_mask = True,   # Construct attn. masks.
-                        return_tensors = 'pt',     # Return pytorch tensors.
-                   )
-        input_ids = encoded_dict['input_ids']
-        attention_mask = encoded_dict['attention_mask']
+    def forward(self, input_ids, attention_mask):
         bert_output = self.BERT(input_ids, attention_mask)
         # pooled_output = bert_output['pooler_output']
         hidden_state = bert_output['hidden_states'][-2]
