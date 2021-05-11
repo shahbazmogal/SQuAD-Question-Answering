@@ -106,23 +106,40 @@ def main(args):
 
                 # Forward
                 input_ids = input_ids.to(device)
-                print(input_ids.shape)
                 attention_mask = attention_mask.to(device)
+                print("Running inference")
                 log_p1, log_p2 = model(input_ids, attention_mask)
+                print("Finished inference")
                 # continue
                 y1, y2 = y1.to(device), y2.to(device)
-                print("y1:", y1.shape)
+                print("Sent y_1 to device")
+                print(y1)
+                print(y2)
+                print(y1.shape)
+                print(y2.shape)
+                print(log_p1.shape)
+                print(log_p1.shape)
+                print(y1, F.nll_loss(log_p1, y1))
+                print(y2, F.nll_loss(log_p1, y2))
                 loss = F.nll_loss(log_p1, y1) + F.nll_loss(log_p2, y2)
+                print("Calculated loss")
                 loss_val = loss.item()
+                print("Copied loss")
 
                 # Backward
+                # Added below myself, confirm
+                model.zero_grad()
                 loss.backward()
+                print("Finished backprop")
                 nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
                 optimizer.step()
                 scheduler.step(step // batch_size)
+                print("Calculated scheduler step")
                 ema(model, step // batch_size)
+                print("Calculated ema step")
 
                 # Log info
+                print("Logging info")
                 step += batch_size
                 progress_bar.update(batch_size)
                 progress_bar.set_postfix(epoch=epoch,
