@@ -21,9 +21,8 @@ from models import BiDAF, PreTrainedBERT
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 from ujson import load as json_load 
-from util import collate_fn, SQuAD
+from util import collate_fn, SQuAD, convert_char_idx_to_token_idx
 from transformers import BertTokenizerFast
-
 
 def main(args):
     # Set up logging and devices
@@ -105,7 +104,7 @@ def main(args):
                 # cw_idxs = cw_idxs.to(device)
                 # qw_idxs = qw_idxs.to(device)
                 # batch_size = cw_idxs.size(0)
-                # batch_size = 32
+                batch_size = 32
                 optimizer.zero_grad()
                 tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased', do_lower_case=True)
                 sequence_tuples = list(zip(contexts,questions))
@@ -124,26 +123,12 @@ def main(args):
                 # Forward
                 input_ids, attention_mask = input_ids.to(device), attention_mask.to(device)
                 log_p1, log_p2 = model(input_ids, attention_mask, token_type_ids)
-                answer_start_token_indices = []
-                answer_end_token_indices = []
-                
-                # idx is the index of the sentence in the batch so the tokenizer can know what decoder to use
-                for idx, (answer_start, answer_end) in enumerate(zip(answer_starts, answer_ends)):
-                    # Adjusting the token because answer_ends are marked as the character after the word ends
-                    # which is most cases is a space
-                    answer_end -= 1
-                    start_token_idx = encoded_dict.char_to_token(idx, answer_start)
-                    end_token_idx = encoded_dict.char_to_token(idx, answer_end)
-                    answer_start_token_indices.append(start_token_idx)
-                    answer_end_token_indices.append(end_token_idx)
-                exit()
-                # print("Finished inference")
-                # continue
-                answer_start, answer_end = answer_start.to(device), answer_end.to(device)
+                answer_start_token_idx, answer_end_token_idx = convert_char_idx_to_token_idx(encoded_dict, answer_starts, answer_ends)
+                answer_start_token_idx, answer_end_token_idx = answer_start_token_idx.to(device), answer_end_token_idx.to(device)
                 # Avoid NLL_Loss error when value > N_class, ie, longer paragraph
-                answer_start[answer_start > BERT_max_sequence_length - 1], answer_end[answer_end > BERT_max_sequence_length - 1] = BERT_max_sequence_length - 1, BERT_max_sequence_length - 1
+                # answer_start[answer_start > BERT_max_sequence_length - 1], answer_end[answer_end > BERT_max_sequence_length - 1] = BERT_max_sequence_length - 1, BERT_max_sequence_length - 1
                 # print(y1)
-                loss = F.nll_loss(log_p1, answer_start) + F.nll_loss(log_p2, answer_end)
+                loss = F.nll_loss(log_p1, answer_start_token_idx) + F.nll_loss(log_p2, answer_end_token_idx)
                 # print("Calculated loss")
                 loss_val = loss.item()
                 # print("Copied loss")
@@ -178,7 +163,7 @@ def main(args):
                     # Evaluate and save checkpoint
                     log.info(f'Evaluating at step {step}...')
                     ema.assign(model)
-                    results, pred_dict = evaluate(model, dev_loader, device,
+                    results, pred_dict = evaluate(model, tokenizer, dev_loader, device,
                                                   args.dev_eval_file,
                                                   args.max_ans_len,
                                                   args.use_squad_v2)
@@ -201,7 +186,7 @@ def main(args):
                                    num_visuals=args.num_visuals)
 
 
-def evaluate(model, data_loader, device, eval_file, max_len, use_squad_v2):
+def evaluate(model, tokenizer, data_loader, device, eval_file, max_len, use_squad_v2):
     BERT_max_sequence_length = 512
     nll_meter = util.AverageMeter()
 
@@ -211,28 +196,44 @@ def evaluate(model, data_loader, device, eval_file, max_len, use_squad_v2):
         gold_dict = json_load(fh)
     with torch.no_grad(), \
             tqdm(total=len(data_loader.dataset)) as progress_bar:
-        for input_ids, attention_mask, y1, y2, ids in data_loader:
+        for contexts, questions, answer_starts, answer_ends, ids in data_loader:
             # Setup for forward
             # cw_idxs = cw_idxs.to(device)
             # qw_idxs = qw_idxs.to(device)
             # batch_size = cw_idxs.size(0)
             batch_size = 32
-
+            # tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased', do_lower_case=True)
+            sequence_tuples = list(zip(contexts,questions))
+            encoded_dict = tokenizer.batch_encode_plus(
+                                sequence_tuples,                      # Context to encode.
+                                add_special_tokens = True, # Add '[CLS]' and '[SEP]'
+                                max_length = BERT_max_sequence_length,           # Pad & truncate all sentences.
+                                padding = 'max_length',
+                                truncation=True,
+                                return_attention_mask = True,   # Construct attn. masks.
+                                return_tensors = 'pt',     # Return pytorch tensors.
+                        )
+            input_ids = torch.as_tensor(encoded_dict['input_ids'])
+            attention_mask = torch.as_tensor(encoded_dict['attention_mask'])
+            token_type_ids = torch.as_tensor(encoded_dict['token_type_ids'])
             # Forward
             input_ids, attention_mask = input_ids.to(device), attention_mask.to(device)
-            log_p1, log_p2 = model(input_ids, attention_mask)
-            # print(log_p1[:, 55:65])
-            y1, y2 = y1.to(device), y2.to(device)
-            y1[y1 > BERT_max_sequence_length - 1], y2[y2 > BERT_max_sequence_length - 1] = BERT_max_sequence_length - 1, BERT_max_sequence_length - 1
-            loss = F.nll_loss(log_p1, y1) + F.nll_loss(log_p2, y2)
+            log_p1, log_p2 = model(input_ids, attention_mask, token_type_ids)
+            answer_start_token_idx, answer_end_token_idx = convert_char_idx_to_token_idx(encoded_dict, answer_starts, answer_ends)
+            answer_start_token_idx, answer_end_token_idx = answer_start_token_idx.to(device), answer_end_token_idx.to(device)
+            # Avoid NLL_Loss error when value > N_class, ie, longer paragraph
+            # answer_start[answer_start > BERT_max_sequence_length - 1], answer_end[answer_end > BERT_max_sequence_length - 1] = BERT_max_sequence_length - 1, BERT_max_sequence_length - 1
+            # print(y1)
+            loss = F.nll_loss(log_p1, answer_start_token_idx) + F.nll_loss(log_p2, answer_end_token_idx)
             nll_meter.update(loss.item(), batch_size)
 
             # Get F1 and EM scores
             p1, p2 = log_p1.exp(), log_p2.exp()
             starts, ends = util.discretize(p1, p2, max_len, use_squad_v2)
-            print(y1[8])
+            print(log_p1[8])
             print(p1[8])
             print(starts[8])
+            exit()
             # Log info
             progress_bar.update(batch_size)
             progress_bar.set_postfix(NLL=nll_meter.avg)
@@ -245,7 +246,9 @@ def evaluate(model, data_loader, device, eval_file, max_len, use_squad_v2):
             pred_dict.update(preds)
 
     model.train()
-
+    # print(gold_dict)
+    # print(pred_dict)
+    # exit() 
     results = util.eval_dicts(gold_dict, pred_dict, use_squad_v2)
     results_list = [('NLL', nll_meter.avg),
                     ('F1', results['F1']),

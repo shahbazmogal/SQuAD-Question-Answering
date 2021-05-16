@@ -91,6 +91,7 @@ class PreTrainedBERT(nn.Module):
         self.end_token_weights_1 = nn.Linear(768, self.ffnn_nodes)
         self.end_token_weights_2 = nn.Linear(self.ffnn_nodes, 1)
         self.log_softmax = nn.LogSoftmax(dim=1)
+        # self.log_softmax = nn.Softmax(dim=1)
 
     def forward(self, input_ids, attention_mask, token_type_ids):
         # print("Started forward pass")
@@ -100,13 +101,18 @@ class PreTrainedBERT(nn.Module):
         start_ffnn_output = self.start_token_weights_2(self.start_token_weights_1(hidden_state)).squeeze()
         end_ffnn_output = self.end_token_weights_2(self.end_token_weights_1(hidden_state)).squeeze()
         # So that after passing through softmax, they result in zero probability
-        start_ffnn_output[attention_mask == 0] = float('-inf')
-        end_ffnn_output[attention_mask == 0] = float('-inf')
+        
+        # Makes output of softmax -inf which makes it imopssible for backprop
+        # neg_inf = float('-inf')
+        neg_inf = -9999
+        start_ffnn_output[attention_mask == 0] = neg_inf
+        end_ffnn_output[attention_mask == 0] = neg_inf
         # Masking words that are not context words before softmax
-        start_ffnn_output[token_type_ids != 1] = float('-inf')
-        end_ffnn_output[token_type_ids != 1] = float('-inf')
+        start_ffnn_output[token_type_ids != 0] = neg_inf
+        end_ffnn_output[token_type_ids != 0] = neg_inf
         # print(start_ffnn_output[0])
+        # print(self.log_softmax(start_ffnn_output))
         log_p1, log_p2 = self.log_softmax(start_ffnn_output), self.log_softmax(end_ffnn_output)
         out = (torch.squeeze(log_p1), torch.squeeze(log_p2))
-        # print(out[0])
+        # print(out[0][0])
         return out

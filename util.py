@@ -641,15 +641,15 @@ def convert_tokens(eval_dict, qa_id, y_start_list, y_end_list, no_answer):
         else:
             if no_answer:
                 y_start, y_end = y_start - 1, y_end - 1
-            if y_start >= len(spans) or y_end >= len(spans):
+            # if y_start >= len(spans) or y_end >= len(spans):
                 #  y_start, y_end = len(spans) - 1, len(spans) - 1
-                print("Check evaluation script, had to adjust start index")
-                print("Spans", spans)
-                print(eval_dict[str(qid)]["context"])
-                print(eval_dict[str(qid)]["question"])
-                print(len(spans))
-                print(y_start, y_end)
-                exit()
+                # print("Check evaluation script, had to adjust start index")
+                # print("Spans", spans)
+                # print(eval_dict[str(qid)]["context"])
+                # print(eval_dict[str(qid)]["question"])
+                # print(len(spans))
+                # print(y_start, y_end)
+                # exit()
             start_idx = spans[y_start][0]
             end_idx = spans[y_end][1]
             pred_dict[str(qid)] = context[start_idx: end_idx]
@@ -740,3 +740,18 @@ def compute_f1(a_gold, a_pred):
     recall = 1.0 * num_same / len(gold_toks)
     f1 = (2 * precision * recall) / (precision + recall)
     return f1
+
+def convert_char_idx_to_token_idx(encoded_dict, answer_starts, answer_ends):
+    answer_start_token_indices = []
+    answer_end_token_indices = []
+    
+    # idx is the index of the sentence in the batch so the tokenizer can know what decoder to use
+    for idx, (answer_start, answer_end) in enumerate(zip(answer_starts, answer_ends)):
+        # Adjusting the token because answer_ends are marked as the character after the word ends
+        # which is most cases is a space
+        answer_end -= 1
+        start_token_idx = encoded_dict.char_to_token(idx, answer_start)
+        end_token_idx = encoded_dict.char_to_token(idx, answer_end)
+        answer_start_token_indices.append(start_token_idx)
+        answer_end_token_indices.append(end_token_idx)
+    return torch.tensor(answer_start_token_indices), torch.tensor(answer_end_token_indices)
