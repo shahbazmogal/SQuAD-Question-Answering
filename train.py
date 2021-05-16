@@ -109,7 +109,6 @@ def main(args):
                 optimizer.zero_grad()
                 tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased', do_lower_case=True)
                 sequence_tuples = list(zip(contexts,questions))
-                # print(sequence_tuples[0])
                 encoded_dict = tokenizer.batch_encode_plus(
                                     sequence_tuples,                      # Context to encode.
                                     add_special_tokens = True, # Add '[CLS]' and '[SEP]'
@@ -124,41 +123,19 @@ def main(args):
                 token_type_ids = torch.as_tensor(encoded_dict['token_type_ids'])
                 # Forward
                 input_ids, attention_mask = input_ids.to(device), attention_mask.to(device)
-                # print("Running inference")
                 log_p1, log_p2 = model(input_ids, attention_mask, token_type_ids)
                 answer_start_token_indices = []
                 answer_end_token_indices = []
+                
                 # idx is the index of the sentence in the batch so the tokenizer can know what decoder to use
                 for idx, (answer_start, answer_end) in enumerate(zip(answer_starts, answer_ends)):
-                    # a_start = answer['answer_start']
-                    # a_end = answer['answer_end']-1
-                    # if a_end<0: a_end = 0
-                    #get start and end tokens
-                    print(contexts[idx])
-                    print("Answer Char Start", idx, answer_start)
+                    # Adjusting the token because answer_ends are marked as the character after the word ends
+                    # which is most cases is a space
+                    answer_end -= 1
                     start_token_idx = encoded_dict.char_to_token(idx, answer_start)
-                    print("Answer Start Token", idx, start_token_idx)
-                    # print(input_ids[idx].shape)
-                    # print("Answer Start Token", idx, tokenizer.convert_ids_to_tokens(input_ids[idx])[[start_token_idx]])
-                    print("Answer Char End", idx, answer_end)
                     end_token_idx = encoded_dict.char_to_token(idx, answer_end)
-                    print("Answer End Token", idx, end_token_idx)
-                    print("Question", questions[idx])
-                    print("Answer", idx, tokenizer.convert_ids_to_tokens(input_ids[idx])[start_token_idx:end_token_idx])
-                    print(contexts[idx].split()[encoded_dict.token_to_word(idx, start_token_idx):encoded_dict.token_to_word(idx, end_token_idx) + 1])
                     answer_start_token_indices.append(start_token_idx)
                     answer_end_token_indices.append(end_token_idx)
-                    print()
-                    print()
-                    print()
-                    print()
-                # print(log_p1[0])
-                # print(answer_starts[8])
-                # print(answer_start_token_indices[8])
-                # print(questions[8])
-                # print(contexts[8])
-                # print(answer_starts)
-                # print(answer_start_token_indices[4])
                 exit()
                 # print("Finished inference")
                 # continue
