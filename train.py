@@ -145,7 +145,7 @@ def main(args):
                     print("Answer End Token", idx, end_token_idx)
                     print("Question", questions[idx])
                     print("Answer", idx, tokenizer.convert_ids_to_tokens(input_ids[idx])[start_token_idx:end_token_idx])
-                    # print(contexts[idx].split()[encoded_dict.token_to_word(idx, start_token_idx):encoded_dict.token_to_word(idx, end_token_idx) + 1])
+                    print(contexts[idx].split()[encoded_dict.token_to_word(idx, start_token_idx):encoded_dict.token_to_word(idx, end_token_idx) + 1])
                     answer_start_token_indices.append(start_token_idx)
                     answer_end_token_indices.append(end_token_idx)
                     print()

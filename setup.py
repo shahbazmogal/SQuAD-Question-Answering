@@ -108,12 +108,6 @@ def preprocess(data, out_file):
                     answers.append("")
                     answer_starts.append(-1)
                     answer_ends.append(-1)
-    count = 0
-    for question, context, answer_start, answer_end, string_id in zip(questions, contexts, answer_starts, answer_ends, string_ids_temp):
-        if count % 1000:
-            print(count, question, string_id)
-            print(context[answer_start:answer_end])
-        count += 1
     np.savez(out_file,
         contexts = np.array(contexts),
         questions = np.array(questions),
