@@ -44,7 +44,6 @@ class SQuAD(data.Dataset):
     """
     def __init__(self, data_path, use_v2=True):
         super(SQuAD, self).__init__()
-
         dataset = np.load(data_path)
         self.contexts = dataset['contexts']
         self.questions = dataset['questions']
@@ -52,8 +51,8 @@ class SQuAD(data.Dataset):
         # self.context_char_idxs = torch.from_numpy(dataset['context_char_idxs']).long()
         # self.question_idxs = torch.from_numpy(dataset['ques_idxs']).long()
         # self.question_char_idxs = torch.from_numpy(dataset['ques_char_idxs']).long()
-        self.y1s = torch.from_numpy(dataset['y1s']).long()
-        self.y2s = torch.from_numpy(dataset['y2s']).long()
+        self.answer_starts = torch.from_numpy(dataset['answer_starts']).long()
+        self.answer_ends = torch.from_numpy(dataset['answer_ends']).long()
 
         # if use_v2:
             # SQuAD 2.0: Use index 0 for no-answer token (token 1 = OOV)
@@ -72,7 +71,7 @@ class SQuAD(data.Dataset):
         # SQuAD 1.1: Ignore no-answer examples
         self.ids = torch.from_numpy(dataset['ids']).long()
         self.valid_idxs = [idx for idx in range(len(self.ids))
-                           if use_v2 or self.y1s[idx].item() >= 0]
+                           if use_v2 or self.answer_ends[idx].item() > 0]
 
     def __getitem__(self, idx):
         idx = self.valid_idxs[idx]
@@ -82,8 +81,8 @@ class SQuAD(data.Dataset):
                 #    self.context_char_idxs[idx],
                 #    self.question_idxs[idx],
                 #    self.question_char_idxs[idx],
-                   self.y1s[idx],
-                   self.y2s[idx],
+                   self.answer_starts[idx],
+                   self.answer_ends[idx],
                    self.ids[idx])
         return example
 
@@ -108,7 +107,7 @@ def collate_fn(examples):
     Adapted from:
         https://github.com/yunjey/seq2seq-dataloader
     """
-    BERT_max_sequence_length = 320
+    BERT_max_sequence_length = 512
     def merge_0d(scalars, dtype=torch.int64):
         return torch.tensor(scalars, dtype=dtype)
 
@@ -131,19 +130,7 @@ def collate_fn(examples):
 
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
     # Group by tensor type
-    contexts, questions, y1s, y2s, ids = zip(*examples)
-    sequence_tuples = zip(contexts, questions)
-    encoded_dict = tokenizer.batch_encode_plus(
-                        sequence_tuples,                      # Context to encode.
-                        add_special_tokens = True, # Add '[CLS]' and '[SEP]'
-                        max_length = BERT_max_sequence_length,           # Pad & truncate all sentences.
-                        padding = 'max_length',
-                        truncation=True,
-                        return_attention_mask = True,   # Construct attn. masks.
-                        return_tensors = 'pt',     # Return pytorch tensors.
-                   )
-    input_ids = torch.as_tensor(encoded_dict['input_ids'])
-    attention_mask = torch.as_tensor(encoded_dict['attention_mask'])
+    contexts, questions, answer_starts, answer_ends, ids = zip(*examples)
 
     # Merge into batch tensors
     # contexts = torch.as_tensor(contexts)
@@ -152,12 +139,12 @@ def collate_fn(examples):
     # context_char_idxs = merge_2d(context_char_idxs)
     # question_idxs = merge_1d(question_idxs)
     # question_char_idxs = merge_2d(question_char_idxs)
-    y1s = merge_0d(y1s)
-    y2s = merge_0d(y2s)
+    answer_starts = merge_0d(answer_starts)
+    answer_ends = merge_0d(answer_ends)
     ids = merge_0d(ids)
 
-    return (input_ids, attention_mask,
-            y1s, y2s, ids)
+    return (contexts, questions,
+            answer_starts, answer_ends, ids)
 
 
 class AverageMeter:
@@ -646,22 +633,29 @@ def convert_tokens(eval_dict, qa_id, y_start_list, y_end_list, no_answer):
         context = eval_dict[str(qid)]["context"]
         spans = eval_dict[str(qid)]["spans"]
         uuid = eval_dict[str(qid)]["uuid"]
-        # print(len(spans))
-        # print(y_start)
-        # print(y_end)
+        # print(context)
+        # print(spans)
         if no_answer and (y_start == 0 or y_end == 0):
             pred_dict[str(qid)] = ''
             sub_dict[uuid] = ''
         else:
             if no_answer:
                 y_start, y_end = y_start - 1, y_end - 1
-            if y_start >= len(spans) or y_end>= len(spans):
-                 y_start, y_end = len(spans) - 1, len(spans) - 1
-                 print("Check evaluation script, had to adjust start index")
+            if y_start >= len(spans) or y_end >= len(spans):
+                #  y_start, y_end = len(spans) - 1, len(spans) - 1
+                print("Check evaluation script, had to adjust start index")
+                print("Spans", spans)
+                print(eval_dict[str(qid)]["context"])
+                print(eval_dict[str(qid)]["question"])
+                print(len(spans))
+                print(y_start, y_end)
+                exit()
             start_idx = spans[y_start][0]
             end_idx = spans[y_end][1]
             pred_dict[str(qid)] = context[start_idx: end_idx]
             sub_dict[uuid] = context[start_idx: end_idx]
+            # print(eval_dict[str(qid)]["question"])
+            # print(sub_dict[uuid])
     return pred_dict, sub_dict
 
 

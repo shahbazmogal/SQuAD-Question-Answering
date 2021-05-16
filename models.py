@@ -92,18 +92,21 @@ class PreTrainedBERT(nn.Module):
         self.end_token_weights_2 = nn.Linear(self.ffnn_nodes, 1)
         self.log_softmax = nn.LogSoftmax(dim=1)
 
-    def forward(self, input_ids, attention_mask):
+    def forward(self, input_ids, attention_mask, token_type_ids):
         # print("Started forward pass")
         bert_output = self.BERT(input_ids, attention_mask)
-        # print("Loaded BERT embeddings")
         # pooled_output = bert_output['pooler_output']
         hidden_state = bert_output['hidden_states'][-2]
-        start_ffnn_output = self.start_token_weights_2(self.start_token_weights_1(hidden_state))
-        # print("Ran start ffnn")
-        end_ffnn_output = self.end_token_weights_2(self.end_token_weights_1(hidden_state))
-        # print("Ran end ffnn")
-        # print(start_ffnn_output.shape)
+        start_ffnn_output = self.start_token_weights_2(self.start_token_weights_1(hidden_state)).squeeze()
+        end_ffnn_output = self.end_token_weights_2(self.end_token_weights_1(hidden_state)).squeeze()
+        # So that after passing through softmax, they result in zero probability
+        start_ffnn_output[attention_mask == 0] = float('-inf')
+        end_ffnn_output[attention_mask == 0] = float('-inf')
+        # Masking words that are not context words before softmax
+        start_ffnn_output[token_type_ids != 1] = float('-inf')
+        end_ffnn_output[token_type_ids != 1] = float('-inf')
+        # print(start_ffnn_output[0])
         log_p1, log_p2 = self.log_softmax(start_ffnn_output), self.log_softmax(end_ffnn_output)
-        # print("Ran softmaxes")
         out = (torch.squeeze(log_p1), torch.squeeze(log_p2))
+        # print(out[0])
         return out

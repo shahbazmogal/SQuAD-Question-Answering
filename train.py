@@ -20,8 +20,9 @@ from json import dumps
 from models import BiDAF, PreTrainedBERT
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
-from ujson import load as json_load
+from ujson import load as json_load 
 from util import collate_fn, SQuAD
+from transformers import BertTokenizerFast
 
 
 def main(args):
@@ -31,7 +32,7 @@ def main(args):
     tbx = SummaryWriter(args.save_dir)
     device, args.gpu_ids = util.get_available_devices()
     # TODO: Make this an arg, there's a copy in util also
-    BERT_max_sequence_length = 320
+    BERT_max_sequence_length = 512
     log.info(f'Args: {dumps(vars(args), indent=4, sort_keys=True)}')
     args.batch_size *= max(1, len(args.gpu_ids))
 
@@ -77,17 +78,18 @@ def main(args):
     # Get data loader
     log.info('Building dataset...')
     train_dataset = SQuAD(args.train_record_file, args.use_squad_v2)
+    print("Training DataSet Loaded")
     train_loader = data.DataLoader(train_dataset,
                                    batch_size=args.batch_size,
                                    shuffle=True,
-                                   num_workers=args.num_workers,
-                                   collate_fn=collate_fn)
+                                   num_workers=args.num_workers)
+                                #    collate_fn=collate_fn)
     dev_dataset = SQuAD(args.dev_record_file, args.use_squad_v2)
     dev_loader = data.DataLoader(dev_dataset,
                                  batch_size=args.batch_size,
                                  shuffle=False,
-                                 num_workers=args.num_workers,
-                                 collate_fn=collate_fn)
+                                 num_workers=args.num_workers)
+                                #  collate_fn=collate_fn)
 
     # Train
     log.info('Training...')
@@ -98,26 +100,73 @@ def main(args):
         log.info(f'Starting epoch {epoch}...')
         with torch.enable_grad(), \
                 tqdm(total=len(train_loader.dataset)) as progress_bar:
-            for input_ids, attention_mask, y1, y2, ids in train_loader:
+            for contexts, questions, answer_starts, answer_ends, ids in train_loader:
                 # Setup for forward
                 # cw_idxs = cw_idxs.to(device)
                 # qw_idxs = qw_idxs.to(device)
                 # batch_size = cw_idxs.size(0)
-                batch_size = 32
+                # batch_size = 32
                 optimizer.zero_grad()
-
+                tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased', do_lower_case=True)
+                sequence_tuples = list(zip(contexts,questions))
+                # print(sequence_tuples[0])
+                encoded_dict = tokenizer.batch_encode_plus(
+                                    sequence_tuples,                      # Context to encode.
+                                    add_special_tokens = True, # Add '[CLS]' and '[SEP]'
+                                    max_length = BERT_max_sequence_length,           # Pad & truncate all sentences.
+                                    padding = 'max_length',
+                                    truncation=True,
+                                    return_attention_mask = True,   # Construct attn. masks.
+                                    return_tensors = 'pt',     # Return pytorch tensors.
+                            )
+                input_ids = torch.as_tensor(encoded_dict['input_ids'])
+                attention_mask = torch.as_tensor(encoded_dict['attention_mask'])
+                token_type_ids = torch.as_tensor(encoded_dict['token_type_ids'])
                 # Forward
-                input_ids = input_ids.to(device)
-                attention_mask = attention_mask.to(device)
+                input_ids, attention_mask = input_ids.to(device), attention_mask.to(device)
                 # print("Running inference")
-                log_p1, log_p2 = model(input_ids, attention_mask)
+                log_p1, log_p2 = model(input_ids, attention_mask, token_type_ids)
+                answer_start_token_indices = []
+                answer_end_token_indices = []
+                # idx is the index of the sentence in the batch so the tokenizer can know what decoder to use
+                for idx, (answer_start, answer_end) in enumerate(zip(answer_starts, answer_ends)):
+                    # a_start = answer['answer_start']
+                    # a_end = answer['answer_end']-1
+                    # if a_end<0: a_end = 0
+                    #get start and end tokens
+                    print(contexts[idx])
+                    print("Answer Char Start", idx, answer_start)
+                    start_token_idx = encoded_dict.char_to_token(idx, answer_start)
+                    print("Answer Start Token", idx, start_token_idx)
+                    # print(input_ids[idx].shape)
+                    # print("Answer Start Token", idx, tokenizer.convert_ids_to_tokens(input_ids[idx])[[start_token_idx]])
+                    print("Answer Char End", idx, answer_end)
+                    end_token_idx = encoded_dict.char_to_token(idx, answer_end)
+                    print("Answer End Token", idx, end_token_idx)
+                    print("Question", questions[idx])
+                    print("Answer", idx, tokenizer.convert_ids_to_tokens(input_ids[idx])[start_token_idx:end_token_idx])
+                    # print(contexts[idx].split()[encoded_dict.token_to_word(idx, start_token_idx):encoded_dict.token_to_word(idx, end_token_idx) + 1])
+                    answer_start_token_indices.append(start_token_idx)
+                    answer_end_token_indices.append(end_token_idx)
+                    print()
+                    print()
+                    print()
+                    print()
+                # print(log_p1[0])
+                # print(answer_starts[8])
+                # print(answer_start_token_indices[8])
+                # print(questions[8])
+                # print(contexts[8])
+                # print(answer_starts)
+                # print(answer_start_token_indices[4])
+                exit()
                 # print("Finished inference")
                 # continue
-                y1, y2 = y1.to(device), y2.to(device)
+                answer_start, answer_end = answer_start.to(device), answer_end.to(device)
                 # Avoid NLL_Loss error when value > N_class, ie, longer paragraph
-                y1[y1 > BERT_max_sequence_length - 1], y2[y2 > BERT_max_sequence_length - 1] = BERT_max_sequence_length - 1, BERT_max_sequence_length - 1
+                answer_start[answer_start > BERT_max_sequence_length - 1], answer_end[answer_end > BERT_max_sequence_length - 1] = BERT_max_sequence_length - 1, BERT_max_sequence_length - 1
                 # print(y1)
-                loss = F.nll_loss(log_p1, y1) + F.nll_loss(log_p2, y2)
+                loss = F.nll_loss(log_p1, answer_start) + F.nll_loss(log_p2, answer_end)
                 # print("Calculated loss")
                 loss_val = loss.item()
                 # print("Copied loss")
@@ -176,7 +225,7 @@ def main(args):
 
 
 def evaluate(model, data_loader, device, eval_file, max_len, use_squad_v2):
-    BERT_max_sequence_length = 320
+    BERT_max_sequence_length = 512
     nll_meter = util.AverageMeter()
 
     model.eval()
@@ -195,6 +244,7 @@ def evaluate(model, data_loader, device, eval_file, max_len, use_squad_v2):
             # Forward
             input_ids, attention_mask = input_ids.to(device), attention_mask.to(device)
             log_p1, log_p2 = model(input_ids, attention_mask)
+            # print(log_p1[:, 55:65])
             y1, y2 = y1.to(device), y2.to(device)
             y1[y1 > BERT_max_sequence_length - 1], y2[y2 > BERT_max_sequence_length - 1] = BERT_max_sequence_length - 1, BERT_max_sequence_length - 1
             loss = F.nll_loss(log_p1, y1) + F.nll_loss(log_p2, y2)
@@ -203,7 +253,9 @@ def evaluate(model, data_loader, device, eval_file, max_len, use_squad_v2):
             # Get F1 and EM scores
             p1, p2 = log_p1.exp(), log_p2.exp()
             starts, ends = util.discretize(p1, p2, max_len, use_squad_v2)
-
+            print(y1[8])
+            print(p1[8])
+            print(starts[8])
             # Log info
             progress_bar.update(batch_size)
             progress_bar.set_postfix(NLL=nll_meter.avg)
