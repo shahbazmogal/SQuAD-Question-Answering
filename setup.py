@@ -120,7 +120,14 @@ if __name__ == '__main__':
     # # Get command-line args
     args_ = get_setup_args()
     # For debugging
+    print("Started creating train file")
     with open('data/train-v2.0.json', 'r') as fh:
 	    train_json = json_load(fh)
 	    train_json = train_json["data"]
     contexts, questions, answers, answer_starts, answer_ends = preprocess(train_json, args_.train_record_file)
+
+    print("Started creating dev file")
+    with open('data/dev-v2.0.json', 'r') as fh:
+	    dev_json = json_load(fh)
+	    dev_json = dev_json["data"]
+    contexts, questions, answers, answer_starts, answer_ends = preprocess(dev_json, args_.dev_record_file)

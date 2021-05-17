@@ -156,34 +156,34 @@ def main(args):
                                optimizer.param_groups[0]['lr'],
                                step)
 
-                steps_till_eval -= batch_size
-                if steps_till_eval <= 0:
-                    steps_till_eval = args.eval_steps
+                # steps_till_eval -= batch_size
+                # if steps_till_eval <= 0:
+                #     steps_till_eval = args.eval_steps
 
-                    # Evaluate and save checkpoint
-                    log.info(f'Evaluating at step {step}...')
-                    ema.assign(model)
-                    results, pred_dict = evaluate(model, tokenizer, dev_loader, device,
-                                                  args.dev_eval_file,
-                                                  args.max_ans_len,
-                                                  args.use_squad_v2)
-                    saver.save(step, model, results[args.metric_name], device)
-                    ema.resume(model)
+                #     # Evaluate and save checkpoint
+                #     log.info(f'Evaluating at step {step}...')
+                #     ema.assign(model)
+                #     results, pred_dict = evaluate(model, tokenizer, dev_loader, device,
+                #                                   args.dev_eval_file,
+                #                                   args.max_ans_len,
+                #                                   args.use_squad_v2)
+                #     saver.save(step, model, results[args.metric_name], device)
+                #     ema.resume(model)
 
-                    # Log to console
-                    results_str = ', '.join(f'{k}: {v:05.2f}' for k, v in results.items())
-                    log.info(f'Dev {results_str}')
+                #     # Log to console
+                #     results_str = ', '.join(f'{k}: {v:05.2f}' for k, v in results.items())
+                #     log.info(f'Dev {results_str}')
 
-                    # Log to TensorBoard
-                    log.info('Visualizing in TensorBoard...')
-                    for k, v in results.items():
-                        tbx.add_scalar(f'dev/{k}', v, step)
-                    util.visualize(tbx,
-                                   pred_dict=pred_dict,
-                                   eval_path=args.dev_eval_file,
-                                   step=step,
-                                   split='dev',
-                                   num_visuals=args.num_visuals)
+                #     # Log to TensorBoard
+                #     log.info('Visualizing in TensorBoard...')
+                #     for k, v in results.items():
+                #         tbx.add_scalar(f'dev/{k}', v, step)
+                #     util.visualize(tbx,
+                #                    pred_dict=pred_dict,
+                #                    eval_path=args.dev_eval_file,
+                #                    step=step,
+                #                    split='dev',
+                #                    num_visuals=args.num_visuals)
 
 
 def evaluate(model, tokenizer, data_loader, device, eval_file, max_len, use_squad_v2):
@@ -230,10 +230,9 @@ def evaluate(model, tokenizer, data_loader, device, eval_file, max_len, use_squa
             # Get F1 and EM scores
             p1, p2 = log_p1.exp(), log_p2.exp()
             starts, ends = util.discretize(p1, p2, max_len, use_squad_v2)
-            print(log_p1[8])
-            print(p1[8])
-            print(starts[8])
-            exit()
+            # print(log_p1[8])
+            # print(p1[8])
+            # print(starts[8])
             # Log info
             progress_bar.update(batch_size)
             progress_bar.set_postfix(NLL=nll_meter.avg)
