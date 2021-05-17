@@ -125,6 +125,10 @@ def main(args):
                 log_p1, log_p2 = model(input_ids, attention_mask, token_type_ids)
                 answer_start_token_idx, answer_end_token_idx = convert_char_idx_to_token_idx(encoded_dict, answer_starts, answer_ends)
                 answer_start_token_idx, answer_end_token_idx = answer_start_token_idx.to(device), answer_end_token_idx.to(device)
+                # print(questions[0])
+                # answer_start_char_idx, answer_end_char_idx = encoded_dict.token_to_chars(0, answer_start_token_idx[0])[0], encoded_dict.token_to_chars(0, answer_end_token_idx[0])[1]
+                # print(contexts[0][answer_start_char_idx:answer_end_char_idx])
+                # print(contexts[0].split()[encoded_dict.token_to_word(0, answer_start_token_idx[0]):encoded_dict.token_to_word(0, answer_end_token_idx[0])])
                 # Avoid NLL_Loss error when value > N_class, ie, longer paragraph
                 # answer_start[answer_start > BERT_max_sequence_length - 1], answer_end[answer_end > BERT_max_sequence_length - 1] = BERT_max_sequence_length - 1, BERT_max_sequence_length - 1
                 # print(y1)
@@ -156,34 +160,34 @@ def main(args):
                                optimizer.param_groups[0]['lr'],
                                step)
 
-                # steps_till_eval -= batch_size
-                # if steps_till_eval <= 0:
-                #     steps_till_eval = args.eval_steps
+                steps_till_eval -= batch_size
+                if steps_till_eval <= 0:
+                    steps_till_eval = args.eval_steps
 
-                #     # Evaluate and save checkpoint
-                #     log.info(f'Evaluating at step {step}...')
-                #     ema.assign(model)
-                #     results, pred_dict = evaluate(model, tokenizer, dev_loader, device,
-                #                                   args.dev_eval_file,
-                #                                   args.max_ans_len,
-                #                                   args.use_squad_v2)
-                #     saver.save(step, model, results[args.metric_name], device)
-                #     ema.resume(model)
+                    # Evaluate and save checkpoint
+                    log.info(f'Evaluating at step {step}...')
+                    ema.assign(model)
+                    results, pred_dict = evaluate(model, tokenizer, dev_loader, device,
+                                                  args.dev_eval_file,
+                                                  args.max_ans_len,
+                                                  args.use_squad_v2)
+                    saver.save(step, model, results[args.metric_name], device)
+                    ema.resume(model)
 
-                #     # Log to console
-                #     results_str = ', '.join(f'{k}: {v:05.2f}' for k, v in results.items())
-                #     log.info(f'Dev {results_str}')
+                    # Log to console
+                    results_str = ', '.join(f'{k}: {v:05.2f}' for k, v in results.items())
+                    log.info(f'Dev {results_str}')
 
-                #     # Log to TensorBoard
-                #     log.info('Visualizing in TensorBoard...')
-                #     for k, v in results.items():
-                #         tbx.add_scalar(f'dev/{k}', v, step)
-                #     util.visualize(tbx,
-                #                    pred_dict=pred_dict,
-                #                    eval_path=args.dev_eval_file,
-                #                    step=step,
-                #                    split='dev',
-                #                    num_visuals=args.num_visuals)
+                    # Log to TensorBoard
+                    log.info('Visualizing in TensorBoard...')
+                    for k, v in results.items():
+                        tbx.add_scalar(f'dev/{k}', v, step)
+                    util.visualize(tbx,
+                                   pred_dict=pred_dict,
+                                   eval_path=args.dev_eval_file,
+                                   step=step,
+                                   split='dev',
+                                   num_visuals=args.num_visuals)
 
 
 def evaluate(model, tokenizer, data_loader, device, eval_file, max_len, use_squad_v2):
@@ -229,7 +233,16 @@ def evaluate(model, tokenizer, data_loader, device, eval_file, max_len, use_squa
 
             # Get F1 and EM scores
             p1, p2 = log_p1.exp(), log_p2.exp()
-            starts, ends = util.discretize(p1, p2, max_len, use_squad_v2)
+            # print(p1, p2)
+            start_token_idxs, end_token_idxs = util.discretize(p1, p2, max_len, use_squad_v2)
+            start_word_idx, end_word_idx= [], []
+            for i in range(0, start_token_idxs.shape[0]):
+                start_word_idx.append(encoded_dict.token_to_word(i, start_token_idxs[i]))
+                end_word_idx.append(encoded_dict.token_to_word(i, end_token_idxs[i]))
+                # print("Answer", contexts[i][encoded_dict.token_to_chars(i, answer_start_token_idx[i])[0]: 
+                # encoded_dict.token_to_chars(i, answer_end_token_idx[i])[1]])
+                # print(i, "Token:", start_token_idxs[i], ", Word:", encoded_dict.token_to_word(i, start_token_idxs[i]))
+                # print(i, "Token:", end_token_idxs[i], ", Word:", encoded_dict.token_to_word(i, end_token_idxs[i]))
             # print(log_p1[8])
             # print(p1[8])
             # print(starts[8])
@@ -239,8 +252,8 @@ def evaluate(model, tokenizer, data_loader, device, eval_file, max_len, use_squa
 
             preds, _ = util.convert_tokens(gold_dict,
                                            ids.tolist(),
-                                           starts.tolist(),
-                                           ends.tolist(),
+                                           start_word_idx,
+                                           end_word_idx,
                                            use_squad_v2)
             pred_dict.update(preds)
 
@@ -252,6 +265,7 @@ def evaluate(model, tokenizer, data_loader, device, eval_file, max_len, use_squa
     results_list = [('NLL', nll_meter.avg),
                     ('F1', results['F1']),
                     ('EM', results['EM'])]
+    print(results_list)
     if use_squad_v2:
         results_list.append(('AvNA', results['AvNA']))
     results = OrderedDict(results_list)

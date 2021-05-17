@@ -744,7 +744,8 @@ def compute_f1(a_gold, a_pred):
 def convert_char_idx_to_token_idx(encoded_dict, answer_starts, answer_ends):
     answer_start_token_indices = []
     answer_end_token_indices = []
-    
+    print(type(answer_start_token_indices))
+    print(len(answer_start_token_indices))
     # idx is the index of the sentence in the batch so the tokenizer can know what decoder to use
     for idx, (answer_start, answer_end) in enumerate(zip(answer_starts, answer_ends)):
         # Adjusting the token because answer_ends are marked as the character after the word ends
@@ -754,4 +755,6 @@ def convert_char_idx_to_token_idx(encoded_dict, answer_starts, answer_ends):
         end_token_idx = encoded_dict.char_to_token(idx, answer_end)
         answer_start_token_indices.append(start_token_idx)
         answer_end_token_indices.append(end_token_idx)
+    # print(type(answer_end_token_indices))
+    # print(len(answer_end_token_indices))
     return torch.tensor(answer_start_token_indices), torch.tensor(answer_end_token_indices)
