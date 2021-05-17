@@ -770,4 +770,6 @@ def convert_char_idx_to_token_idx(encoded_dict, answer_starts, answer_ends):
                 answer_start_token_indices[i] = answer_end_token_indices[i]
             if answer_end_token_indices[i] == None:
                 answer_end_token_indices[i] = answer_start_token_indices[i]
+        answer_start_token_indices = torch.tensor(answer_start_token_indices)
+        answer_end_token_indices = torch.tensor(answer_end_token_indices)
     return answer_start_token_indices, answer_end_token_indices
