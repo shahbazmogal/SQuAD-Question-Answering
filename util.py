@@ -641,15 +641,14 @@ def convert_tokens(eval_dict, qa_id, y_start_list, y_end_list, no_answer):
         else:
             if no_answer:
                 y_start, y_end = y_start - 1, y_end - 1
-            # if y_start >= len(spans) or y_end >= len(spans):
-                #  y_start, y_end = len(spans) - 1, len(spans) - 1
-                # print("Check evaluation script, had to adjust start index")
+            if y_start >= len(spans) or y_end >= len(spans):
+                y_start, y_end = len(spans) - 1, len(spans) - 1
+                print("Check evaluation script, had to adjust start index")
                 # print("Spans", spans)
                 # print(eval_dict[str(qid)]["context"])
                 # print(eval_dict[str(qid)]["question"])
                 # print(len(spans))
                 # print(y_start, y_end)
-                # exit()
             start_idx = spans[y_start][0]
             end_idx = spans[y_end][1]
             pred_dict[str(qid)] = context[start_idx: end_idx]
@@ -765,11 +764,18 @@ def convert_char_idx_to_token_idx(encoded_dict, answer_starts, answer_ends):
     except RuntimeError:
         print("Runtime Error Token not Found")
         print(answer_start_token_indices)
+        print(answer_end_token_indices)
         for i in range(0, len(answer_start_token_indices)):
             if answer_start_token_indices[i] == None:
-                answer_start_token_indices[i] = answer_end_token_indices[i]
+                answer_start_token_indices[i] = 0
+                print("Changed")
+                print(answer_start_token_indices)
+                print(answer_end_token_indices)
             if answer_end_token_indices[i] == None:
-                answer_end_token_indices[i] = answer_start_token_indices[i]
+                answer_end_token_indices[i] = 0
+                print("Changed")
+                print(answer_start_token_indices)
+                print(answer_end_token_indices)
         answer_start_token_indices = torch.tensor(answer_start_token_indices)
         answer_end_token_indices = torch.tensor(answer_end_token_indices)
     return answer_start_token_indices, answer_end_token_indices
