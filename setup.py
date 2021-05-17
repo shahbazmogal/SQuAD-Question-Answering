@@ -94,20 +94,33 @@ def preprocess(data, out_file):
                 question = qas['question']
                 id = total
                 string_id = qas['id']
-                ids.append(id)
-                string_ids_temp.append(string_id)
-                questions.append(question)
-                contexts.append(context)
                 if qas['answers']!= []:
                     for answer in qas['answers']:
+                        ids.append(id)
+                        string_ids_temp.append(string_id)
+                        questions.append(question)
+                        contexts.append(context)
                         answers.append(answer['text'])
                         answer_starts.append(answer["answer_start"])
                         answer_ends.append(answer["answer_start"]+len(answer['text']))
                 #if it is impossible
                 else:
+                    ids.append(id)
+                    string_ids_temp.append(string_id)
+                    questions.append(question)
+                    contexts.append(context)
                     answers.append("")
                     answer_starts.append(-1)
                     answer_ends.append(-1)
+            # print("`Answers", len(answers))
+            # print("Questions", len(questions))
+            # print("Answer Starts", len(answer_starts))
+            # print("Answer Ends", len(answers))
+            # print("-------------")
+            # print()
+            # print()
+            # print()
+            # print()`
     np.savez(out_file,
         contexts = np.array(contexts),
         questions = np.array(questions),
@@ -126,8 +139,21 @@ if __name__ == '__main__':
 	    train_json = train_json["data"]
     contexts, questions, answers, answer_starts, answer_ends = preprocess(train_json, args_.train_record_file)
 
+    # count = 0
+    # for (context, question, answer_start, answer_end) in zip(contexts, questions, answer_starts, answer_ends):
+        # if count < 10:
+            # print(question)
+            # print(context[answer_start:answer_end])
+            # count += 1
+
+    count = 0
     print("Started creating dev file")
     with open('data/dev-v2.0.json', 'r') as fh:
 	    dev_json = json_load(fh)
 	    dev_json = dev_json["data"]
     contexts, questions, answers, answer_starts, answer_ends = preprocess(dev_json, args_.dev_record_file)
+    # for (context, question, answer_start, answer_end) in zip(contexts, questions, answer_starts, answer_ends):
+    #     if count < 10:
+    #         print(question)
+    #         print(context[answer_start:answer_end])
+    #         count += 1

@@ -23,9 +23,13 @@ from tqdm import tqdm
 from ujson import load as json_load 
 from util import collate_fn, SQuAD, convert_char_idx_to_token_idx
 from transformers import BertTokenizerFast
+import os
 
 def main(args):
     # Set up logging and devices
+    # TODO: Added
+    # TOKENIZERS_PARALLELISM=False
+    # os.environ["TOKENIZERS_PARALLELISM"] = "false"
     args.save_dir = util.get_save_dir(args.save_dir, args.name, training=True)
     log = util.get_logger(args.save_dir, args.name)
     tbx = SummaryWriter(args.save_dir)
@@ -201,10 +205,17 @@ def evaluate(model, tokenizer, data_loader, device, eval_file, max_len, use_squa
     with torch.no_grad(), \
             tqdm(total=len(data_loader.dataset)) as progress_bar:
         for contexts, questions, answer_starts, answer_ends, ids in data_loader:
+            # for (context, question, answer_start, answer_end, id) in zip(contexts, questions, answer_starts, answer_ends, ids):
+            #     print(question)
+            #     print(context[answer_start:answer_end])
             # Setup for forward
             # cw_idxs = cw_idxs.to(device)
             # qw_idxs = qw_idxs.to(device)
             # batch_size = cw_idxs.size(0)
+            # print(contexts[0])
+            # print(questions[0])
+            # print(answer_starts[0])
+            # print(answer_ends[0])
             batch_size = 32
             # tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased', do_lower_case=True)
             sequence_tuples = list(zip(contexts,questions))
@@ -223,6 +234,7 @@ def evaluate(model, tokenizer, data_loader, device, eval_file, max_len, use_squa
             # Forward
             input_ids, attention_mask = input_ids.to(device), attention_mask.to(device)
             log_p1, log_p2 = model(input_ids, attention_mask, token_type_ids)
+            # print(answer_starts)
             answer_start_token_idx, answer_end_token_idx = convert_char_idx_to_token_idx(encoded_dict, answer_starts, answer_ends)
             answer_start_token_idx, answer_end_token_idx = answer_start_token_idx.to(device), answer_end_token_idx.to(device)
             # Avoid NLL_Loss error when value > N_class, ie, longer paragraph
