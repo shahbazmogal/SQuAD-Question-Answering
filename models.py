@@ -99,7 +99,9 @@ class PreTrainedBERT(nn.Module):
         # pooled_output = bert_output['pooler_output']
         hidden_state = bert_output['hidden_states'][-2]
         start_ffnn_output = self.start_token_weights_2(self.start_token_weights_1(hidden_state)).squeeze()
+        # start_ffnn_output = self.start_token_weights_1(hidden_state).squeeze()
         end_ffnn_output = self.end_token_weights_2(self.end_token_weights_1(hidden_state)).squeeze()
+        # end_ffnn_output = self.end_token_weights_1(hidden_state).squeeze()
         # So that after passing through softmax, they result in zero probability
         
         # Makes output of softmax -inf which makes it imopssible for backprop
