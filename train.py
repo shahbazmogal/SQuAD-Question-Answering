@@ -248,13 +248,15 @@ def evaluate(model, tokenizer, data_loader, device, eval_file, max_len, use_squa
             # print(p1, p2)
             start_token_idxs, end_token_idxs = util.discretize(p1, p2, max_len, use_squad_v2)
             start_word_idx, end_word_idx= [], []
+            print("Number of sentences in batch:", start_token_idxs.shape[0])
             for i in range(0, start_token_idxs.shape[0]):
                 start_word_idx.append(encoded_dict.token_to_word(i, start_token_idxs[i]))
                 end_word_idx.append(encoded_dict.token_to_word(i, end_token_idxs[i]))
-                # print("Answer", contexts[i][encoded_dict.token_to_chars(i, answer_start_token_idx[i])[0]: 
-                # encoded_dict.token_to_chars(i, answer_end_token_idx[i])[1]])
-                # print(i, "Token:", start_token_idxs[i], ", Word:", encoded_dict.token_to_word(i, start_token_idxs[i]))
-                # print(i, "Token:", end_token_idxs[i], ", Word:", encoded_dict.token_to_word(i, end_token_idxs[i]))
+                print("Answer", contexts[i][encoded_dict.token_to_chars(i, answer_start_token_idx[i])[0]: 
+                encoded_dict.token_to_chars(i, answer_end_token_idx[i])[1]])
+                print(i, "Token:", start_token_idxs[i], ", Word:", encoded_dict.token_to_word(i, start_token_idxs[i]))
+                print(i, "Token:", end_token_idxs[i], ", Word:", encoded_dict.token_to_word(i, end_token_idxs[i]))
+                break
             # print(log_p1[8])
             # print(p1[8])
             # print(starts[8])
