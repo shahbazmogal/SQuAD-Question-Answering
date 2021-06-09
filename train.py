@@ -108,7 +108,7 @@ def main(args):
                 # cw_idxs = cw_idxs.to(device)
                 # qw_idxs = qw_idxs.to(device)
                 # batch_size = cw_idxs.size(0)
-                batch_size = 32
+                batch_size = args.batch_size
                 optimizer.zero_grad()
                 tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased', do_lower_case=True)
                 sequence_tuples = list(zip(contexts,questions))
@@ -195,6 +195,7 @@ def main(args):
 
 
 def evaluate(model, tokenizer, data_loader, device, eval_file, max_len, use_squad_v2):
+    args = get_train_args()
     BERT_max_sequence_length = 512
     nll_meter = util.AverageMeter()
 
@@ -216,7 +217,7 @@ def evaluate(model, tokenizer, data_loader, device, eval_file, max_len, use_squa
             # print(questions[0])
             # print(answer_starts[0])
             # print(answer_ends[0])
-            batch_size = 32
+            batch_size = args.batch_size
             # tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased', do_lower_case=True)
             sequence_tuples = list(zip(contexts,questions))
             encoded_dict = tokenizer.batch_encode_plus(
@@ -252,11 +253,14 @@ def evaluate(model, tokenizer, data_loader, device, eval_file, max_len, use_squa
             for i in range(0, start_token_idxs.shape[0]):
                 start_word_idx.append(encoded_dict.token_to_word(i, start_token_idxs[i]))
                 end_word_idx.append(encoded_dict.token_to_word(i, end_token_idxs[i]))
-                print("Answer", contexts[i][encoded_dict.token_to_chars(i, answer_start_token_idx[i])[0]: 
+                print("Question:", questions[i])
+                print("Actual answer:", contexts[i][encoded_dict.token_to_chars(i, answer_start_token_idx[i])[0]: 
                 encoded_dict.token_to_chars(i, answer_end_token_idx[i])[1]])
                 print(i, "Token:", start_token_idxs[i], ", Word:", encoded_dict.token_to_word(i, start_token_idxs[i]))
                 print(i, "Token:", end_token_idxs[i], ", Word:", encoded_dict.token_to_word(i, end_token_idxs[i]))
-                break
+                context_words = contexts[i].split()
+                print(i, "Predicted Answer:", context_words[encoded_dict.token_to_word(i, start_token_idxs[i]):encoded_dict.token_to_word(i, end_token_idxs[i]) + 1])
+            exit()
             # print(log_p1[8])
             # print(p1[8])
             # print(starts[8])
