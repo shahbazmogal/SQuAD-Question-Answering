@@ -251,16 +251,26 @@ def evaluate(model, tokenizer, data_loader, device, eval_file, max_len, use_squa
             start_word_idx, end_word_idx= [], []
             print("Number of sentences in batch:", start_token_idxs.shape[0])
             for i in range(0, start_token_idxs.shape[0]):
-                start_word_idx.append(encoded_dict.token_to_word(i, start_token_idxs[i]))
-                end_word_idx.append(encoded_dict.token_to_word(i, end_token_idxs[i]))
-                print("Question:", questions[i])
-                print("Actual answer:", contexts[i][encoded_dict.token_to_chars(i, answer_start_token_idx[i])[0]: 
-                encoded_dict.token_to_chars(i, answer_end_token_idx[i])[1]])
-                print(i, "Token:", start_token_idxs[i], ", Word:", encoded_dict.token_to_word(i, start_token_idxs[i]))
-                print(i, "Token:", end_token_idxs[i], ", Word:", encoded_dict.token_to_word(i, end_token_idxs[i]))
-                context_words = contexts[i].split()
-                print(i, "Predicted Answer:", context_words[encoded_dict.token_to_word(i, start_token_idxs[i]):encoded_dict.token_to_word(i, end_token_idxs[i]) + 1])
-            exit()
+                # Will fail if answer_location > len(context)
+                try:
+                    print("Question:", questions[i])
+                    print("Number of chars in context", len(contexts[i]))
+                    print("Start Token Idx actual answer:", answer_start_token_idx[i], " at char idx", encoded_dict.token_to_chars(i, answer_start_token_idx[i])[0])
+                    print("End Token Idx actual answer:", answer_end_token_idx[i], " at char idx", encoded_dict.token_to_chars(i, answer_end_token_idx[i])[0])
+                    print("Actual answer:", contexts[i][encoded_dict.token_to_chars(i, answer_start_token_idx[i])[0]: 
+                    encoded_dict.token_to_chars(i, answer_end_token_idx[i])[1]])
+                    print(i, "Token:", start_token_idxs[i], ", Word:", encoded_dict.token_to_word(i, start_token_idxs[i]))
+                    print(i, "Token:", end_token_idxs[i], ", Word:", encoded_dict.token_to_word(i, end_token_idxs[i]))
+                    context_words = contexts[i].split()
+                    print(i, "Predicted Answer:", context_words[encoded_dict.token_to_word(i, start_token_idxs[i]):encoded_dict.token_to_word(i, end_token_idxs[i]) + 1])
+                    print()
+                    print()
+                    start_word_idx.append(encoded_dict.token_to_word(i, start_token_idxs[i]))
+                    end_word_idx.append(encoded_dict.token_to_word(i, end_token_idxs[i]))
+                except:
+                    start_word_idx.append(len(contexts[i]) - 1)
+                    end_word_idx.append(len(contexts[i]) - 1)
+                    print("Passage longer than BERT Model expects")
             # print(log_p1[8])
             # print(p1[8])
             # print(starts[8])
