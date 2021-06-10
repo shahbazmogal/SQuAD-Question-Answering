@@ -83,8 +83,9 @@ class PreTrainedBERT(nn.Module):
     def __init__(self, device):
         super(PreTrainedBERT, self).__init__()
         self.device = device
-        self.BERT = BertModel.from_pretrained('bert-base-uncased',output_hidden_states=True).to(self.device)
-        self.ffnn_nodes = 128
+        self.question_BERT = BertModel.from_pretrained('bert-base-uncased',output_hidden_states=True).to(self.device)
+        self.context_BERT = BertModel.from_pretrained('bert-base-uncased',output_hidden_states=True).to(self.device)
+        self.ffnn_nodes = 16
         # Converts tensor from size (b, max_len, 768) to (b, max_len, whatever size you choose)
         self.start_token_weights_1 = nn.Linear(768, self.ffnn_nodes)
         self.start_token_weights_2 = nn.Linear(self.ffnn_nodes, 1)
@@ -93,26 +94,30 @@ class PreTrainedBERT(nn.Module):
         self.log_softmax = nn.LogSoftmax(dim=1)
         # self.log_softmax = nn.Softmax(dim=1)
 
-    def forward(self, input_ids, attention_mask, token_type_ids):
+    def forward(self, questions_input_ids, questions_attn_mask, questions_token_type_ids, contexts_input_ids, contexts_attn_mask, contexts_token_type_ids):
         # print("Started forward pass")
-        bert_output = self.BERT(input_ids, attention_mask)
+        question_bert_output = self.question_BERT(questions_input_ids, questions_attn_mask)
+        contexts_bert_output = self.context_BERT(contexts_input_ids, contexts_attn_mask)
         # pooled_output = bert_output['pooler_output']
-        hidden_state = bert_output['hidden_states'][-2]
-        start_ffnn_output = self.start_token_weights_2(self.start_token_weights_1(hidden_state)).squeeze()
+        question_hidden_state = question_bert_output['hidden_states'][-2]
+        contexts_hidden_state = contexts_bert_output['hidden_states'][-2]
+        model_hidden_state = torch.cat((question_hidden_state, contexts_hidden_state), 1)
+        start_ffnn_output = self.start_token_weights_2(self.start_token_weights_1(model_hidden_state)).squeeze()
         # start_ffnn_output = self.start_token_weights_1(hidden_state).squeeze()
-        end_ffnn_output = self.end_token_weights_2(self.end_token_weights_1(hidden_state)).squeeze()
+        end_ffnn_output = self.end_token_weights_2(self.end_token_weights_1(model_hidden_state)).squeeze()
         # end_ffnn_output = self.end_token_weights_1(hidden_state).squeeze()
         # So that after passing through softmax, they result in zero probability
-        
+        start_ffnn_output = start_ffnn_output[:,512:]
+        end_ffnn_output = end_ffnn_output[:,512:]
         # Makes output of softmax -inf which makes it imopssible for backprop
         # neg_inf = float('-inf')
         neg_inf = -9999
-        start_ffnn_output[attention_mask == 0] = neg_inf
-        end_ffnn_output[attention_mask == 0] = neg_inf
+        # Masking unattended words
+        start_ffnn_output[contexts_attn_mask == 0] = neg_inf
+        end_ffnn_output[contexts_attn_mask == 0] = neg_inf
         # Masking words that are not context words before softmax
-        start_ffnn_output[token_type_ids != 0] = neg_inf
-        end_ffnn_output[token_type_ids != 0] = neg_inf
-        # print(start_ffnn_output[0])
+        # start_ffnn_output[token_type_ids != 0] = neg_inf
+        # end_ffnn_output[token_type_ids != 0] = neg_inf
         # print(self.log_softmax(start_ffnn_output))
         log_p1, log_p2 = self.log_softmax(start_ffnn_output), self.log_softmax(end_ffnn_output)
         out = (torch.squeeze(log_p1), torch.squeeze(log_p2))

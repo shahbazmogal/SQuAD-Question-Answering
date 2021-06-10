@@ -779,3 +779,19 @@ def convert_char_idx_to_token_idx(encoded_dict, answer_starts, answer_ends):
         answer_start_token_indices = torch.tensor(answer_start_token_indices)
         answer_end_token_indices = torch.tensor(answer_end_token_indices)
     return answer_start_token_indices, answer_end_token_indices
+
+def get_BERT_input(b_sentences, tokenizer, max_sequence_length, device):
+    encoded_dict = tokenizer.batch_encode_plus(
+                                    b_sentences,                      # Context to encode.
+                                    add_special_tokens = True, # Add '[CLS]' and '[SEP]'
+                                    max_length = max_sequence_length,           # Pad & truncate all sentences.
+                                    padding = 'max_length',
+                                    truncation=True,
+                                    return_attention_mask = True,   # Construct attn. masks.
+                                    return_tensors = 'pt',     # Return pytorch tensors.
+                            )
+    input_ids = torch.as_tensor(encoded_dict['input_ids'])
+    attention_mask = torch.as_tensor(encoded_dict['attention_mask'])
+    token_type_ids = torch.as_tensor(encoded_dict['token_type_ids'])
+    input_ids, attention_mask, token_type_ids = input_ids.to(device), attention_mask.to(device), token_type_ids.to(device)
+    return encoded_dict, input_ids, attention_mask, token_type_ids

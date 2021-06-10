@@ -21,7 +21,7 @@ from models import BiDAF, PreTrainedBERT
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 from ujson import load as json_load 
-from util import collate_fn, SQuAD, convert_char_idx_to_token_idx
+from util import collate_fn, SQuAD, convert_char_idx_to_token_idx, get_BERT_input
 from transformers import BertTokenizerFast
 import os
 
@@ -98,44 +98,35 @@ def main(args):
     log.info('Training...')
     steps_till_eval = args.eval_steps
     epoch = step // len(train_dataset)
+    question_tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased', do_lower_case=True)
+    context_tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased', do_lower_case=True)
+    to_delete_count = 0
     while epoch != args.num_epochs:
         epoch += 1
         log.info(f'Starting epoch {epoch}...')
         with torch.enable_grad(), \
                 tqdm(total=len(train_loader.dataset)) as progress_bar:
             for contexts, questions, answer_starts, answer_ends, ids in train_loader:
-                # Setup for forward
-                # cw_idxs = cw_idxs.to(device)
-                # qw_idxs = qw_idxs.to(device)
-                # batch_size = cw_idxs.size(0)
                 batch_size = args.batch_size
                 optimizer.zero_grad()
-                tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased', do_lower_case=True)
-                sequence_tuples = list(zip(contexts,questions))
-                encoded_dict = tokenizer.batch_encode_plus(
-                                    sequence_tuples,                      # Context to encode.
-                                    add_special_tokens = True, # Add '[CLS]' and '[SEP]'
-                                    max_length = BERT_max_sequence_length,           # Pad & truncate all sentences.
-                                    padding = 'max_length',
-                                    truncation=True,
-                                    return_attention_mask = True,   # Construct attn. masks.
-                                    return_tensors = 'pt',     # Return pytorch tensors.
-                            )
-                input_ids = torch.as_tensor(encoded_dict['input_ids'])
-                attention_mask = torch.as_tensor(encoded_dict['attention_mask'])
-                token_type_ids = torch.as_tensor(encoded_dict['token_type_ids'])
-                # Forward
-                input_ids, attention_mask = input_ids.to(device), attention_mask.to(device)
-                log_p1, log_p2 = model(input_ids, attention_mask, token_type_ids)
-                answer_start_token_idx, answer_end_token_idx = convert_char_idx_to_token_idx(encoded_dict, answer_starts, answer_ends)
+                # sequence_tuples = list(zip(questions, contexts))
+                questions_encoded_dict, questions_input_ids, questions_attn_mask, questions_token_type_ids = get_BERT_input(list(questions), question_tokenizer, BERT_max_sequence_length, device)
+                contexts_encoded_dict, contexts_input_ids, contexts_attn_mask, contexts_token_type_ids = get_BERT_input(list(contexts), context_tokenizer, BERT_max_sequence_length, device)
+                # model_input_ids, model_attn_mask, model_token_type_ids = torch.cat((questions_input_ids, contexts_input_ids), 1), torch.cat((questions_attn_mask, contexts_attn_mask), 1), torch.cat((questions_attn_mask, contexts_attn_mask), 1)
+                log_p1, log_p2 = model(questions_input_ids, questions_attn_mask, questions_token_type_ids, contexts_input_ids, contexts_attn_mask, contexts_token_type_ids)
+                answer_start_token_idx, answer_end_token_idx = convert_char_idx_to_token_idx(contexts_encoded_dict, answer_starts, answer_ends)
                 answer_start_token_idx, answer_end_token_idx = answer_start_token_idx.to(device), answer_end_token_idx.to(device)
-                # print(questions[0])
-                # answer_start_char_idx, answer_end_char_idx = encoded_dict.token_to_chars(0, answer_start_token_idx[0])[0], encoded_dict.token_to_chars(0, answer_end_token_idx[0])[1]
-                # print(contexts[0][answer_start_char_idx:answer_end_char_idx])
-                # print(contexts[0].split()[encoded_dict.token_to_word(0, answer_start_token_idx[0]):encoded_dict.token_to_word(0, answer_end_token_idx[0])])
-                # Avoid NLL_Loss error when value > N_class, ie, longer paragraph
-                # answer_start[answer_start > BERT_max_sequence_length - 1], answer_end[answer_end > BERT_max_sequence_length - 1] = BERT_max_sequence_length - 1, BERT_max_sequence_length - 1
-                # print(y1)
+                # Get F1 and EM scores
+                to_delete_p1, to_delete_p2 = log_p1.exp(), log_p2.exp()
+                to_delete_pred_start_token_idxs, to_delete_pred_end_token_idxs = util.discretize(to_delete_p1, to_delete_p2, args.max_ans_len, args.use_squad_v2)
+                print(answer_start_token_idx)
+                print(to_delete_pred_start_token_idxs)
+                print()
+                print(answer_end_token_idx)
+                print(to_delete_pred_end_token_idxs)
+                to_delete_count += 1
+                if to_delete_count > 4500:
+                    exit()
                 loss = F.nll_loss(log_p1, answer_start_token_idx) + F.nll_loss(log_p2, answer_end_token_idx)
                 # print("Calculated loss")
                 loss_val = loss.item()
