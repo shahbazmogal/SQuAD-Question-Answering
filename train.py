@@ -34,7 +34,8 @@ def main(args):
     log = util.get_logger(args.save_dir, args.name)
     tbx = SummaryWriter(args.save_dir)
     device, args.gpu_ids = util.get_available_devices()
-    # TODO: Make this an arg, there's a copy in util also
+    # TODO: Make this an arg, there's a copy in util also, also try 64 instead of 50
+    question_max_token_length = 50
     BERT_max_sequence_length = 512
     log.info(f'Args: {dumps(vars(args), indent=4, sort_keys=True)}')
     args.batch_size *= max(1, len(args.gpu_ids))
@@ -110,7 +111,7 @@ def main(args):
                 batch_size = args.batch_size
                 optimizer.zero_grad()
                 # sequence_tuples = list(zip(questions, contexts))
-                questions_encoded_dict, questions_input_ids, questions_attn_mask, questions_token_type_ids = get_BERT_input(list(questions), question_tokenizer, BERT_max_sequence_length, device)
+                questions_encoded_dict, questions_input_ids, questions_attn_mask, questions_token_type_ids = get_BERT_input(list(questions), question_tokenizer, question_max_token_length, device)
                 contexts_encoded_dict, contexts_input_ids, contexts_attn_mask, contexts_token_type_ids = get_BERT_input(list(contexts), context_tokenizer, BERT_max_sequence_length, device)
                 # model_input_ids, model_attn_mask, model_token_type_ids = torch.cat((questions_input_ids, contexts_input_ids), 1), torch.cat((questions_attn_mask, contexts_attn_mask), 1), torch.cat((questions_attn_mask, contexts_attn_mask), 1)
                 log_p1, log_p2 = model(questions_input_ids, questions_attn_mask, questions_token_type_ids, contexts_input_ids, contexts_attn_mask, contexts_token_type_ids)
@@ -187,6 +188,7 @@ def main(args):
 
 def evaluate(model, tokenizer, data_loader, device, eval_file, max_len, use_squad_v2):
     args = get_train_args()
+    question_max_token_length = 50
     BERT_max_sequence_length = 512
     nll_meter = util.AverageMeter()
 

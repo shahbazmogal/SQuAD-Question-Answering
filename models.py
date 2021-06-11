@@ -107,8 +107,8 @@ class PreTrainedBERT(nn.Module):
         end_ffnn_output = self.end_token_weights_2(self.end_token_weights_1(model_hidden_state)).squeeze()
         # end_ffnn_output = self.end_token_weights_1(hidden_state).squeeze()
         # So that after passing through softmax, they result in zero probability
-        start_ffnn_output = start_ffnn_output[:,512:]
-        end_ffnn_output = end_ffnn_output[:,512:]
+        start_ffnn_output = start_ffnn_output[:,-512:]
+        end_ffnn_output = end_ffnn_output[:,-512:]
         # Makes output of softmax -inf which makes it imopssible for backprop
         # neg_inf = float('-inf')
         neg_inf = -9999
