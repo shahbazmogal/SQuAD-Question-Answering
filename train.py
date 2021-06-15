@@ -35,7 +35,7 @@ def main(args):
     tbx = SummaryWriter(args.save_dir)
     device, args.gpu_ids = util.get_available_devices()
     # TODO: Make this an arg, there's a copy in util also, also try 64 instead of 50
-    question_max_token_length = 50
+    question_max_token_length = 48
     BERT_max_sequence_length = 512
     log.info(f'Args: {dumps(vars(args), indent=4, sort_keys=True)}')
     args.batch_size *= max(1, len(args.gpu_ids))
@@ -135,8 +135,8 @@ def main(args):
 
                 # Backward
                 # Added below myself, confirm
-                model.zero_grad()
-                loss.backward()
+                # model.zero_grad()
+                # loss.backward()
                 # print("Finished backprop")
                 nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
                 optimizer.step()
@@ -188,7 +188,7 @@ def main(args):
 
 def evaluate(model, tokenizer, data_loader, device, eval_file, max_len, use_squad_v2):
     args = get_train_args()
-    question_max_token_length = 50
+    question_max_token_length = 48
     BERT_max_sequence_length = 512
     nll_meter = util.AverageMeter()
 
