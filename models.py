@@ -86,7 +86,7 @@ class PreTrainedBERT(nn.Module):
         self.question_BERT = BertModel.from_pretrained('bert-base-uncased',output_hidden_states=True).to(self.device)
         self.context_BERT = BertModel.from_pretrained('bert-base-uncased',output_hidden_states=True).to(self.device)
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=560, nhead=8)
-        self.qa_encoder = nn.TransformerEncoder(self.encoder_layer, 4)
+        self.qa_encoder = nn.TransformerEncoder(self.encoder_layer, 2)
         self.ffnn_nodes = 16
         # Converts tensor from size (b, max_len, 768) to (b, max_len, whatever size you choose)
         self.start_token_weights_1 = nn.Linear(768, self.ffnn_nodes)
@@ -104,11 +104,10 @@ class PreTrainedBERT(nn.Module):
         question_hidden_state = question_bert_output['hidden_states'][-2]
         contexts_hidden_state = contexts_bert_output['hidden_states'][-2]
         model_hidden_state = torch.cat((question_hidden_state, contexts_hidden_state), 1)
-        print(model_hidden_state.shape)
+        model_hidden_state = model_hidden_state.permute(0,2,1)
         ## TODO: Maybe pass in the mask
         qa_encoded = self.qa_encoder(model_hidden_state)
-        print(model_hidden_state.shape)
-        exit()
+        model_hidden_state = model_hidden_state.permute(0,2,1)
         start_ffnn_output = self.start_token_weights_2(self.start_token_weights_1(model_hidden_state)).squeeze()
         # start_ffnn_output = self.start_token_weights_1(hidden_state).squeeze()
         end_ffnn_output = self.end_token_weights_2(self.end_token_weights_1(model_hidden_state)).squeeze()
