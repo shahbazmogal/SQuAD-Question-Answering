@@ -27,16 +27,10 @@ import os
 
 def main(args):
     # Set up logging and devices
-    # TODO: Added
-    # TOKENIZERS_PARALLELISM=False
-    # os.environ["TOKENIZERS_PARALLELISM"] = "false"
     args.save_dir = util.get_save_dir(args.save_dir, args.name, training=True)
     log = util.get_logger(args.save_dir, args.name)
     tbx = SummaryWriter(args.save_dir)
     device, args.gpu_ids = util.get_available_devices()
-    # TODO: Make this an arg, there's a copy in util also, also try 64 instead of 50
-    question_max_token_length = 48
-    BERT_max_sequence_length = 512
     log.info(f'Args: {dumps(vars(args), indent=4, sort_keys=True)}')
     args.batch_size *= max(1, len(args.gpu_ids))
 
@@ -47,15 +41,12 @@ def main(args):
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
 
-    # Get embeddings
-    # log.info('Loading embeddings...')
-    # word_vectors = util.torch_from_json(args.word_emb_file)
-
     # Get model
     log.info('Building model...')
-    # model = BiDAF(word_vectors=word_vectors,
-    #               hidden_size=args.hidden_size,
-    #               drop_prob=args.drop_prob)
+
+    # TODO: Make this an arg, there's a copy in util also, also try 64 instead of 48
+    question_max_token_length = 48
+    BERT_max_sequence_length = 512
     model = PreTrainedBERT(device)
     model = nn.DataParallel(model, args.gpu_ids)
     if args.load_path:
@@ -110,23 +101,25 @@ def main(args):
             for contexts, questions, answer_starts, answer_ends, ids in train_loader:
                 batch_size = args.batch_size
                 optimizer.zero_grad()
-                # sequence_tuples = list(zip(questions, contexts))
+                to_delete_question_number = 2
+                print(questions[to_delete_question_number])
                 questions_encoded_dict, questions_input_ids, questions_attn_mask, questions_token_type_ids = get_BERT_input(list(questions), question_tokenizer, question_max_token_length, device)
                 contexts_encoded_dict, contexts_input_ids, contexts_attn_mask, contexts_token_type_ids = get_BERT_input(list(contexts), context_tokenizer, BERT_max_sequence_length, device)
-                # model_input_ids, model_attn_mask, model_token_type_ids = torch.cat((questions_input_ids, contexts_input_ids), 1), torch.cat((questions_attn_mask, contexts_attn_mask), 1), torch.cat((questions_attn_mask, contexts_attn_mask), 1)
+                to_delete_tokens = contexts_encoded_dict.tokens(to_delete_question_number)
                 log_p1, log_p2 = model(questions_input_ids, questions_attn_mask, questions_token_type_ids, contexts_input_ids, contexts_attn_mask, contexts_token_type_ids)
                 answer_start_token_idx, answer_end_token_idx = convert_char_idx_to_token_idx(contexts_encoded_dict, answer_starts, answer_ends)
                 answer_start_token_idx, answer_end_token_idx = answer_start_token_idx.to(device), answer_end_token_idx.to(device)
+                # print(answer_start_token_idx[to_delete_question_number])
+                # print(answer_end_token_idx[to_delete_question_number])
+                actual_char_start_idx, actual_char_end_idx = contexts_encoded_dict.token_to_chars(answer_start_token_idx[to_delete_question_number]), contexts_encoded_dict.token_to_chars(answer_end_token_idx[to_delete_question_number])
+                # print(contexts[to_delete_question_number][actual_char_start_idx.start:actual_char_end_idx.end])
                 # Get F1 and EM scores
                 to_delete_p1, to_delete_p2 = log_p1.exp(), log_p2.exp()
                 to_delete_pred_start_token_idxs, to_delete_pred_end_token_idxs = util.discretize(to_delete_p1, to_delete_p2, args.max_ans_len, args.use_squad_v2)
-                print(answer_start_token_idx)
-                print(to_delete_pred_start_token_idxs)
-                print()
-                print(answer_end_token_idx)
-                print(to_delete_pred_end_token_idxs)
+                print("Actual Answer:", to_delete_tokens[answer_start_token_idx[to_delete_question_number]:answer_end_token_idx[to_delete_question_number] + 1])
+                print("Predicted Answer:", to_delete_tokens[to_delete_pred_start_token_idxs[to_delete_question_number]:to_delete_pred_end_token_idxs[to_delete_question_number]])
                 to_delete_count += 1
-                if to_delete_count > 4500:
+                if to_delete_count > 1000:
                     exit()
                 loss = F.nll_loss(log_p1, answer_start_token_idx) + F.nll_loss(log_p2, answer_end_token_idx)
                 # print("Calculated loss")
