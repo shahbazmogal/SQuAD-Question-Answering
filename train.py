@@ -13,6 +13,7 @@ import torch.optim as optim
 import torch.optim.lr_scheduler as sched
 import torch.utils.data as data
 import util
+from torchsummary import summary
 
 from args import get_train_args
 from collections import OrderedDict
@@ -48,6 +49,16 @@ def main(args):
     question_max_token_length = 48
     BERT_max_sequence_length = 512
     model = PreTrainedBERT(device)
+    for param in model.context_BERT.parameters():
+        param.requires_grad = False
+
+    for param in model.question_BERT.parameters():
+        param.requires_grad = False
+
+    # for name, param in model.named_parameters():
+    #     if param.requires_grad:
+    #         print(name, param.requires_grad)
+
     model = nn.DataParallel(model, args.gpu_ids)
     if args.load_path:
         log.info(f'Loading checkpoint from {args.load_path}...')
@@ -93,6 +104,7 @@ def main(args):
     question_tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased', do_lower_case=True)
     context_tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased', do_lower_case=True)
     to_delete_count = 0
+    to_delete_max_token_size = 0
     while epoch != args.num_epochs:
         epoch += 1
         log.info(f'Starting epoch {epoch}...')
@@ -109,9 +121,11 @@ def main(args):
                 log_p1, log_p2 = model(questions_input_ids, questions_attn_mask, questions_token_type_ids, contexts_input_ids, contexts_attn_mask, contexts_token_type_ids)
                 answer_start_token_idx, answer_end_token_idx = convert_char_idx_to_token_idx(contexts_encoded_dict, answer_starts, answer_ends)
                 answer_start_token_idx, answer_end_token_idx = answer_start_token_idx.to(device), answer_end_token_idx.to(device)
+
                 # print(answer_start_token_idx[to_delete_question_number])
                 # print(answer_end_token_idx[to_delete_question_number])
-                actual_char_start_idx, actual_char_end_idx = contexts_encoded_dict.token_to_chars(answer_start_token_idx[to_delete_question_number]), contexts_encoded_dict.token_to_chars(answer_end_token_idx[to_delete_question_number])
+                # Below doesn't work because need to pass in batch_index number
+                # actual_char_start_idx, actual_char_end_idx = contexts_encoded_dict.token_to_chars(answer_start_token_idx[to_delete_question_number]), contexts_encoded_dict.token_to_chars(answer_end_token_idx[to_delete_question_number])
                 # print(contexts[to_delete_question_number][actual_char_start_idx.start:actual_char_end_idx.end])
                 # Get F1 and EM scores
                 to_delete_p1, to_delete_p2 = log_p1.exp(), log_p2.exp()
@@ -119,8 +133,8 @@ def main(args):
                 print("Actual Answer:", to_delete_tokens[answer_start_token_idx[to_delete_question_number]:answer_end_token_idx[to_delete_question_number] + 1])
                 print("Predicted Answer:", to_delete_tokens[to_delete_pred_start_token_idxs[to_delete_question_number]:to_delete_pred_end_token_idxs[to_delete_question_number]])
                 to_delete_count += 1
-                if to_delete_count > 1000:
-                    exit()
+                # if to_delete_count > 200:
+                #     exit()
                 loss = F.nll_loss(log_p1, answer_start_token_idx) + F.nll_loss(log_p2, answer_end_token_idx)
                 # print("Calculated loss")
                 loss_val = loss.item()
@@ -128,8 +142,8 @@ def main(args):
 
                 # Backward
                 # Added below myself, confirm
-                # model.zero_grad()
-                # loss.backward()
+                model.zero_grad()
+                loss.backward()
                 # print("Finished backprop")
                 nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
                 optimizer.step()
