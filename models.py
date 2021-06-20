@@ -87,7 +87,7 @@ class PreTrainedBERT(nn.Module):
         self.context_BERT = BertModel.from_pretrained('bert-base-uncased',output_hidden_states=True).to(self.device)
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=560, nhead=8)
         self.qa_encoder = nn.TransformerEncoder(self.encoder_layer, 2)
-        self.ffnn_nodes = 16
+        self.ffnn_nodes = 256
         # Converts tensor from size (b, max_len, 768) to (b, max_len, whatever size you choose)
         self.start_token_weights_1 = nn.Linear(768, self.ffnn_nodes)
         self.start_token_weights_2 = nn.Linear(self.ffnn_nodes, 1)
