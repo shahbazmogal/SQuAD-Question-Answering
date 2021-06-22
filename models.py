@@ -85,8 +85,10 @@ class PreTrainedBERT(nn.Module):
         self.device = device
         self.question_BERT = BertModel.from_pretrained('bert-base-uncased',output_hidden_states=True).to(self.device)
         self.context_BERT = BertModel.from_pretrained('bert-base-uncased',output_hidden_states=True).to(self.device)
+        # TODO: Ensure not 768
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=560, nhead=8)
-        self.qa_encoder = nn.TransformerEncoder(self.encoder_layer, 2)
+        # self.encoder_layer = nn.TransformerEncoderLayer(d_model=768, nhead=8)
+        self.qa_encoder = nn.TransformerEncoder(self.encoder_layer, 12)
         self.ffnn_nodes = 256
         # Converts tensor from size (b, max_len, 768) to (b, max_len, whatever size you choose)
         self.start_token_weights_1 = nn.Linear(768, self.ffnn_nodes)
@@ -103,21 +105,26 @@ class PreTrainedBERT(nn.Module):
         # pooled_output = bert_output['pooler_output']
         question_hidden_state = question_bert_output['hidden_states'][-2]
         contexts_hidden_state = contexts_bert_output['hidden_states'][-2]
+        neg_inf = -9999
+        # TODO: Confirm this operation
+        question_hidden_state[questions_attn_mask == 0] = neg_inf
+        contexts_hidden_state[contexts_attn_mask == 0] = neg_inf
         model_hidden_state = torch.cat((question_hidden_state, contexts_hidden_state), 1)
         model_hidden_state = model_hidden_state.permute(0,2,1)
         ## TODO: Maybe pass in the mask
-        qa_encoded = self.qa_encoder(model_hidden_state)
+        # qa_encoded = self.qa_encoder(model_hidden_state)
         model_hidden_state = model_hidden_state.permute(0,2,1)
         start_ffnn_output = self.start_token_weights_2(self.start_token_weights_1(model_hidden_state)).squeeze()
         # start_ffnn_output = self.start_token_weights_1(hidden_state).squeeze()
         end_ffnn_output = self.end_token_weights_2(self.end_token_weights_1(model_hidden_state)).squeeze()
         # end_ffnn_output = self.end_token_weights_1(hidden_state).squeeze()
         # So that after passing through softmax, they result in zero probability
-        start_ffnn_output = start_ffnn_output[:,-512:]
-        end_ffnn_output = end_ffnn_output[:,-512:]
+        # start_ffnn_output = start_ffnn_output[:,-512:]
+        # end_ffnn_output = end_ffnn_output[:,-512:]
+        start_ffnn_output = start_ffnn_output.narrow(1, -512, 512)
+        end_ffnn_output = end_ffnn_output.narrow(1, -512, 512)
         # Makes output of softmax -inf which makes it imopssible for backprop
         # neg_inf = float('-inf')
-        neg_inf = -9999
         # Masking unattended words
         start_ffnn_output[contexts_attn_mask == 0] = neg_inf
         end_ffnn_output[contexts_attn_mask == 0] = neg_inf

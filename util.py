@@ -765,6 +765,8 @@ def convert_char_idx_to_token_idx(encoded_dict, answer_starts, answer_ends):
         print("Runtime Error Token not Found")
         print(answer_start_token_indices)
         print(answer_end_token_indices)
+        print(answer_starts)
+        print(answer_ends)
         for i in range(0, len(answer_start_token_indices)):
             if answer_start_token_indices[i] == None:
                 answer_start_token_indices[i] = 0
@@ -773,9 +775,9 @@ def convert_char_idx_to_token_idx(encoded_dict, answer_starts, answer_ends):
                 print(answer_end_token_indices)
             if answer_end_token_indices[i] == None:
                 answer_end_token_indices[i] = 0
-                print("Changed")
-                print(answer_start_token_indices)
-                print(answer_end_token_indices)
+        print("Changed")
+        print(answer_start_token_indices)
+        print(answer_end_token_indices)
         answer_start_token_indices = torch.tensor(answer_start_token_indices)
         answer_end_token_indices = torch.tensor(answer_end_token_indices)
     return answer_start_token_indices, answer_end_token_indices
