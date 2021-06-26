@@ -138,7 +138,7 @@ def main(args):
                     nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
                     optimizer.step()
                 except ValueError:
-                    print("Context larger than BERT input size: ", torch.tensor(contexts_encoded_dict.tokens()).size)
+                    print("Context larger than BERT input size")
                 scheduler.step(step // batch_size)
                 ema(model, step // batch_size)
 
@@ -232,6 +232,10 @@ def evaluate(model, question_tokenizer, context_tokenizer, data_loader, device, 
                     print(i, "Predicted Answer:", context_words[contexts_encoded_dict.token_to_word(i, start_token_idxs[i]):contexts_encoded_dict.token_to_word(i, end_token_idxs[i]) + 1])
                     print()
                     print()
+                    # print(start_token_idxs[i], contexts_encoded_dict.token_to_word(i, start_token_idxs[i]))
+                    # print(end_token_idxs[i], contexts_encoded_dict.token_to_word(i, end_token_idxs[i]))
+                    start_word_idx.append(contexts_encoded_dict.token_to_word(i, start_token_idxs[i]))
+                    end_word_idx.append(contexts_encoded_dict.token_to_word(i, end_token_idxs[i]))
                 # TODO: Append to start word idx
                 # except:
                 #     start_word_idx.append(len(contexts[i]) - 1)
@@ -241,17 +245,17 @@ def evaluate(model, question_tokenizer, context_tokenizer, data_loader, device, 
             # print(p1[8])
             # print(starts[8])
             # Log info
-                print(gold_dict)
-                print(ids.tolist())
-                print(start_word_idx)
-                print(end_word_idx)
+                # print(gold_dict)
+                # print(ids.tolist())
+                # print(start_word_idx)
+                # print(end_word_idx)
                 preds, _ = util.convert_tokens(gold_dict,
                                             ids.tolist(),
                                             start_word_idx,
                                             end_word_idx,
                                             use_squad_v2)
-                print(preds)
-                exit()
+                # print(preds)
+                # exit()
                 pred_dict.update(preds)
             except ValueError:
                 print("Context larger than BERT input size: ")
