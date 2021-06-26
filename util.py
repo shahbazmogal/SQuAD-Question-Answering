@@ -788,7 +788,7 @@ def get_BERT_input(b_sentences, tokenizer, max_sequence_length, device):
                                     add_special_tokens = True, # Add '[CLS]' and '[SEP]'
                                     max_length = max_sequence_length,           # Pad & truncate all sentences.
                                     padding = 'max_length',
-                                    truncation=True,
+                                    # truncation=True,
                                     return_attention_mask = True,   # Construct attn. masks.
                                     return_tensors = 'pt',     # Return pytorch tensors.
                             )

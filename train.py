@@ -113,28 +113,32 @@ def main(args):
                 optimizer.zero_grad()
                 debug_question_number = 2
                 print(questions[debug_question_number])
-                questions_encoded_dict, questions_input_ids, questions_attn_mask, questions_token_type_ids = get_BERT_input(list(questions), question_tokenizer, question_max_token_length, device)
-                contexts_encoded_dict, contexts_input_ids, contexts_attn_mask, contexts_token_type_ids = get_BERT_input(list(contexts), context_tokenizer, BERT_max_sequence_length, device)
-                debug_tokens = contexts_encoded_dict.tokens(debug_question_number)
-                log_p1, log_p2 = model(questions_input_ids, questions_attn_mask, questions_token_type_ids, contexts_input_ids, contexts_attn_mask, contexts_token_type_ids)
-                answer_start_token_idx, answer_end_token_idx = convert_char_idx_to_token_idx(contexts_encoded_dict, answer_starts, answer_ends)
-                answer_start_token_idx, answer_end_token_idx = answer_start_token_idx.to(device), answer_end_token_idx.to(device)
+                try:
+                    questions_encoded_dict, questions_input_ids, questions_attn_mask, questions_token_type_ids = get_BERT_input(list(questions), question_tokenizer, question_max_token_length, device)
+                    contexts_encoded_dict, contexts_input_ids, contexts_attn_mask, contexts_token_type_ids = get_BERT_input(list(contexts), context_tokenizer, BERT_max_sequence_length, device)
+                    debug_tokens = contexts_encoded_dict.tokens(debug_question_number)
+                    log_p1, log_p2 = model(questions_input_ids, questions_attn_mask, questions_token_type_ids, contexts_input_ids, contexts_attn_mask, contexts_token_type_ids)
+                    answer_start_token_idx, answer_end_token_idx = convert_char_idx_to_token_idx(contexts_encoded_dict, answer_starts, answer_ends)
+                    answer_start_token_idx, answer_end_token_idx = answer_start_token_idx.to(device), answer_end_token_idx.to(device)
 
-                # Get F1 and EM scores
-                debug_p1, debug_p2 = log_p1.exp(), log_p2.exp()
-                debug_pred_start_token_idxs, debug_pred_end_token_idxs = util.discretize(debug_p1, debug_p2, args.max_ans_len, args.use_squad_v2)
-                print("Actual Answer:", debug_tokens[answer_start_token_idx[debug_question_number]:answer_end_token_idx[debug_question_number] + 1])
-                print("Predicted Answer:", debug_tokens[debug_pred_start_token_idxs[debug_question_number]:debug_pred_end_token_idxs[debug_question_number]])
-                debug_count += 1
-                # if debug_count > 200:
-                #     exit()
-                loss = F.nll_loss(log_p1, answer_start_token_idx) + F.nll_loss(log_p2, answer_end_token_idx)
-                loss_val = loss.item()
+                    # Get F1 and EM scores
+                    debug_p1, debug_p2 = log_p1.exp(), log_p2.exp()
+                    debug_pred_start_token_idxs, debug_pred_end_token_idxs = util.discretize(debug_p1, debug_p2, args.max_ans_len, args.use_squad_v2)
+                    print("Actual Answer:", debug_tokens[answer_start_token_idx[debug_question_number]:answer_end_token_idx[debug_question_number] + 1])
+                    print("Predicted Answer:", debug_tokens[debug_pred_start_token_idxs[debug_question_number]:debug_pred_end_token_idxs[debug_question_number]])
+                    debug_count += 1
+                    # if debug_count > 200:
+                    #     exit()
+                    loss = F.nll_loss(log_p1, answer_start_token_idx) + F.nll_loss(log_p2, answer_end_token_idx)
+                    loss_val = loss.item()
+                    print(loss_val)
 
-                model.zero_grad()
-                loss.backward()
-                nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
-                optimizer.step()
+                    model.zero_grad()
+                    loss.backward()
+                    nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
+                    optimizer.step()
+                except ValueError:
+                    print("Context larger than BERT input size: ", torch.tensor(contexts_encoded_dict.tokens()).size)
                 scheduler.step(step // batch_size)
                 ema(model, step // batch_size)
 
@@ -180,11 +184,13 @@ def main(args):
 
 
 def evaluate(model, question_tokenizer, context_tokenizer, data_loader, device, eval_file, max_len, use_squad_v2):
+    # Set up logging and devices
     args = get_train_args()
+    device, args.gpu_ids = util.get_available_devices()
+    args.batch_size *= max(1, len(args.gpu_ids))
     question_max_token_length = 48
     BERT_max_sequence_length = 512
     nll_meter = util.AverageMeter()
-
     model.eval()
     pred_dict = {}
     with open(eval_file, 'r') as fh:
@@ -193,34 +199,39 @@ def evaluate(model, question_tokenizer, context_tokenizer, data_loader, device, 
             tqdm(total=len(data_loader.dataset)) as progress_bar:
         for contexts, questions, answer_starts, answer_ends, ids in data_loader:
             batch_size = args.batch_size
-            questions_encoded_dict, questions_input_ids, questions_attn_mask, questions_token_type_ids = get_BERT_input(list(questions), question_tokenizer, question_max_token_length, device)
-            contexts_encoded_dict, contexts_input_ids, contexts_attn_mask, contexts_token_type_ids = get_BERT_input(list(contexts), context_tokenizer, BERT_max_sequence_length, device)
-            log_p1, log_p2 = model(questions_input_ids, questions_attn_mask, questions_token_type_ids, contexts_input_ids, contexts_attn_mask, contexts_token_type_ids)
-            answer_start_token_idx, answer_end_token_idx = convert_char_idx_to_token_idx(contexts_encoded_dict, answer_starts, answer_ends)
-            answer_start_token_idx, answer_end_token_idx = answer_start_token_idx.to(device), answer_end_token_idx.to(device)
-            loss = F.nll_loss(log_p1, answer_start_token_idx) + F.nll_loss(log_p2, answer_end_token_idx)
-            nll_meter.update(loss.item(), batch_size)
+            try:
+                questions_encoded_dict, questions_input_ids, questions_attn_mask, questions_token_type_ids = get_BERT_input(list(questions), question_tokenizer, question_max_token_length, device)
+                contexts_encoded_dict, contexts_input_ids, contexts_attn_mask, contexts_token_type_ids = get_BERT_input(list(contexts), context_tokenizer, BERT_max_sequence_length, device)
+                log_p1, log_p2 = model(questions_input_ids, questions_attn_mask, questions_token_type_ids, contexts_input_ids, contexts_attn_mask, contexts_token_type_ids)
+                print("Model ran fine")
+                answer_start_token_idx, answer_end_token_idx = convert_char_idx_to_token_idx(contexts_encoded_dict, answer_starts, answer_ends)
+                print("Got token idx fine")
+                answer_start_token_idx, answer_end_token_idx = answer_start_token_idx.to(device), answer_end_token_idx.to(device)
+                loss = F.nll_loss(log_p1, answer_start_token_idx) + F.nll_loss(log_p2, answer_end_token_idx)
+                nll_meter.update(loss.item(), batch_size)
 
-            # Get F1 and EM scores
-            p1, p2 = log_p1.exp(), log_p2.exp()
-            # print(p1, p2)
-            start_token_idxs, end_token_idxs = util.discretize(p1, p2, max_len, use_squad_v2)
-            start_word_idx, end_word_idx= [], []
-            print("Number of sentences in batch:", start_token_idxs.shape[0])
-            for i in range(0, start_token_idxs.shape[0]):
-                print("Question:", questions[i])
-                # print("Number of tokens in context", len(contexts_encoded_dict.tokens(i))) # Always 512
-                print("Number of characters in context", len(contexts[i]))
-                print("Start Token Idx actual answer:", answer_start_token_idx[i], " at char idx", contexts_encoded_dict.token_to_chars(i, answer_start_token_idx[i])[0])
-                print("End Token Idx actual answer:", answer_end_token_idx[i], " at char idx", contexts_encoded_dict.token_to_chars(i, answer_end_token_idx[i])[1])
-                print("Actual answer:", contexts[i][contexts_encoded_dict.token_to_chars(i, answer_start_token_idx[i])[0]: 
-                contexts_encoded_dict.token_to_chars(i, answer_end_token_idx[i])[1]])
-                print(i, "Pred Token:", start_token_idxs[i], ", Word:", contexts_encoded_dict.token_to_word(i, start_token_idxs[i]))
-                print(i, "Pred Token:", end_token_idxs[i], ", Word:", contexts_encoded_dict.token_to_word(i, end_token_idxs[i]))
-                context_words = contexts[i].split()
-                print(i, "Predicted Answer:", context_words[contexts_encoded_dict.token_to_word(i, start_token_idxs[i]):contexts_encoded_dict.token_to_word(i, end_token_idxs[i]) + 1])
-                print()
-                print()
+                # Get F1 and EM scores
+                p1, p2 = log_p1.exp(), log_p2.exp()
+                # print(p1, p2)
+                start_token_idxs, end_token_idxs = util.discretize(p1, p2, max_len, use_squad_v2)
+                print("Discretized fine")
+                start_word_idx, end_word_idx= [], []
+                print("Number of sentences in batch:", start_token_idxs.shape[0])
+                for i in range(0, start_token_idxs.shape[0]):
+                    print("Question:", questions[i])
+                    print("Number of tokens in context", len(contexts_encoded_dict.tokens(i))) # Always 512
+                    print("Number of characters in context", i , ':', len(contexts[i]))
+                    print("Requested Start Token:", answer_start_token_idx[i])
+                    print("Start Token Idx actual answer:", answer_start_token_idx[i], " at char idx", contexts_encoded_dict.token_to_chars(i, answer_start_token_idx[i])[0])
+                    print("End Token Idx actual answer:", answer_end_token_idx[i], " at char idx", contexts_encoded_dict.token_to_chars(i, answer_end_token_idx[i])[1])
+                    print("Actual answer:", contexts[i][contexts_encoded_dict.token_to_chars(i, answer_start_token_idx[i])[0]: 
+                    contexts_encoded_dict.token_to_chars(i, answer_end_token_idx[i])[1]])
+                    print(i, "Pred Token:", start_token_idxs[i], ", Word:", contexts_encoded_dict.token_to_word(i, start_token_idxs[i]))
+                    print(i, "Pred Token:", end_token_idxs[i], ", Word:", contexts_encoded_dict.token_to_word(i, end_token_idxs[i]))
+                    context_words = contexts[i].split()
+                    print(i, "Predicted Answer:", context_words[contexts_encoded_dict.token_to_word(i, start_token_idxs[i]):contexts_encoded_dict.token_to_word(i, end_token_idxs[i]) + 1])
+                    print()
+                    print()
                 # TODO: Append to start word idx
                 # except:
                 #     start_word_idx.append(len(contexts[i]) - 1)
@@ -230,16 +241,23 @@ def evaluate(model, question_tokenizer, context_tokenizer, data_loader, device, 
             # print(p1[8])
             # print(starts[8])
             # Log info
+                print(gold_dict)
+                print(ids.tolist())
+                print(start_word_idx)
+                print(end_word_idx)
+                preds, _ = util.convert_tokens(gold_dict,
+                                            ids.tolist(),
+                                            start_word_idx,
+                                            end_word_idx,
+                                            use_squad_v2)
+                print(preds)
+                exit()
+                pred_dict.update(preds)
+            except ValueError:
+                print("Context larger than BERT input size: ")
+        
             progress_bar.update(batch_size)
             progress_bar.set_postfix(NLL=nll_meter.avg)
-
-            preds, _ = util.convert_tokens(gold_dict,
-                                           ids.tolist(),
-                                           start_word_idx,
-                                           end_word_idx,
-                                           use_squad_v2)
-            pred_dict.update(preds)
-
     model.train()
     # print(gold_dict)
     # print(pred_dict)
