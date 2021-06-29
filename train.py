@@ -49,10 +49,13 @@ def main(args):
     question_max_token_length = 48
     BERT_max_sequence_length = 512
     model = PreTrainedBERT(device)
-    for param in model.context_BERT.parameters():
-        param.requires_grad = False
+    # for param in model.context_BERT.parameters():
+    #     param.requires_grad = False
 
-    for param in model.question_BERT.parameters():
+    # for param in model.question_BERT.parameters():
+    #     param.requires_grad = False
+
+    for param in model.BERT.parameters():
         param.requires_grad = False
 
     model = nn.DataParallel(model, args.gpu_ids)
@@ -99,9 +102,10 @@ def main(args):
     epoch = step // len(train_dataset)
     question_tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased', do_lower_case=True)
     context_tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased', do_lower_case=True)
+    sequence_tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased', do_lower_case=True)
     
     debug_count = 0
-
+    loss_val = 999
     
     while epoch != args.num_epochs:
         epoch += 1
@@ -114,13 +118,15 @@ def main(args):
                 debug_question_number = 2
                 print(questions[debug_question_number])
                 try:
-                    questions_encoded_dict, questions_input_ids, questions_attn_mask, questions_token_type_ids = get_BERT_input(list(questions), question_tokenizer, question_max_token_length, device)
-                    contexts_encoded_dict, contexts_input_ids, contexts_attn_mask, contexts_token_type_ids = get_BERT_input(list(contexts), context_tokenizer, BERT_max_sequence_length, device)
+                    # questions_encoded_dict, questions_input_ids, questions_attn_mask, questions_token_type_ids = get_BERT_input(list(questions), question_tokenizer, question_max_token_length, device)
+                    # contexts_encoded_dict, contexts_input_ids, contexts_attn_mask, contexts_token_type_ids = get_BERT_input(list(contexts), context_tokenizer, BERT_max_sequence_length, device)
+                    sequence_tuples = list(zip(contexts,questions))
+                    sequence_input_ids, sequence_attn_mask, sequence_token_type_ids = get_BERT_input(sequence_tuples, sequence_tokenizer, BERT_max_sequence_length, device) 
                     debug_tokens = contexts_encoded_dict.tokens(debug_question_number)
-                    log_p1, log_p2 = model(questions_input_ids, questions_attn_mask, questions_token_type_ids, contexts_input_ids, contexts_attn_mask, contexts_token_type_ids)
+                    log_p1, log_p2 = model(sequence_input_ids, sequence_attn_mask, sequence_token_type_ids)
                     answer_start_token_idx, answer_end_token_idx = convert_char_idx_to_token_idx(contexts_encoded_dict, answer_starts, answer_ends)
                     answer_start_token_idx, answer_end_token_idx = answer_start_token_idx.to(device), answer_end_token_idx.to(device)
-
+                    exit()
                     # Get F1 and EM scores
                     debug_p1, debug_p2 = log_p1.exp(), log_p2.exp()
                     debug_pred_start_token_idxs, debug_pred_end_token_idxs = util.discretize(debug_p1, debug_p2, args.max_ans_len, args.use_squad_v2)

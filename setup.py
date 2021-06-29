@@ -157,3 +157,9 @@ if __name__ == '__main__':
     #         print(question)
     #         print(context[answer_start:answer_end])
     #         count += 1
+
+    print("Started creating test file")
+    with open('data/test-v2.0.json', 'r') as fh:
+	    test_json = json_load(fh)
+	    test_json = test_json["data"]
+    contexts, questions, answers, answer_starts, answer_ends = preprocess(test_json, args_.test_record_file)

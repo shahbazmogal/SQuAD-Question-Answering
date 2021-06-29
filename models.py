@@ -83,8 +83,9 @@ class PreTrainedBERT(nn.Module):
     def __init__(self, device):
         super(PreTrainedBERT, self).__init__()
         self.device = device
-        self.question_BERT = BertModel.from_pretrained('bert-base-uncased',output_hidden_states=True).to(self.device)
-        self.context_BERT = BertModel.from_pretrained('bert-base-uncased',output_hidden_states=True).to(self.device)
+        # self.question_BERT = BertModel.from_pretrained('bert-base-uncased',output_hidden_states=True).to(self.device)
+        # self.context_BERT = BertModel.from_pretrained('bert-base-uncased',output_hidden_states=True).to(self.device)
+        self.BERT = BertModel.from_pretrained('bert-base-uncased',output_hidden_states=True).to(self.device)
         # TODO: Ensure not 768
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=560, nhead=8)
         # self.encoder_layer = nn.TransformerEncoderLayer(d_model=768, nhead=8)
@@ -98,10 +99,12 @@ class PreTrainedBERT(nn.Module):
         self.log_softmax = nn.LogSoftmax(dim=1)
         # self.log_softmax = nn.Softmax(dim=1)
 
-    def forward(self, questions_input_ids, questions_attn_mask, questions_token_type_ids, contexts_input_ids, contexts_attn_mask, contexts_token_type_ids):
+    def forward(self, sequence_input_ids, sequence_attn_mask, sequence_token_type_ids):
         # print("Started forward pass")
-        question_bert_output = self.question_BERT(questions_input_ids, questions_attn_mask)
-        contexts_bert_output = self.context_BERT(contexts_input_ids, contexts_attn_mask)
+        # question_bert_output = self.question_BERT(questions_input_ids, questions_attn_mask)
+        # contexts_bert_output = self.context_BERT(contexts_input_ids, contexts_attn_mask)
+        bert_output = self.BERT(sequence_input_ids, sequence_attn_mask, sequence_token_type_ids)
+        print(sequence_input_ids, sequence_attn_mask, sequence_token_type_ids)
         # pooled_output = bert_output['pooler_output']
         question_hidden_state = question_bert_output['hidden_states'][-2]
         contexts_hidden_state = contexts_bert_output['hidden_states'][-2]
@@ -112,9 +115,12 @@ class PreTrainedBERT(nn.Module):
         model_hidden_state = torch.cat((question_hidden_state, contexts_hidden_state), 1)
         model_hidden_state = model_hidden_state.permute(0,2,1)
         ## TODO: Maybe pass in the mask
-        # qa_encoded = self.qa_encoder(model_hidden_state)
+        qa_encoded = self.qa_encoder(model_hidden_state)
         model_hidden_state = model_hidden_state.permute(0,2,1)
-        start_ffnn_output = self.start_token_weights_2(self.start_token_weights_1(model_hidden_state)).squeeze()
+        qa_encoded = qa_encoded.permute(0,2,1)
+        # print("Model State", model_hidden_state.shape)
+        # print("QA Encoded State", qa_encoded.shape)
+        start_ffnn_output = self.start_token_weights_2(self.start_token_weights_1(qa_encoded)).squeeze()
         # start_ffnn_output = self.start_token_weights_1(hidden_state).squeeze()
         end_ffnn_output = self.end_token_weights_2(self.end_token_weights_1(model_hidden_state)).squeeze()
         # end_ffnn_output = self.end_token_weights_1(hidden_state).squeeze()
@@ -132,6 +138,7 @@ class PreTrainedBERT(nn.Module):
         # start_ffnn_output[token_type_ids != 0] = neg_inf
         # end_ffnn_output[token_type_ids != 0] = neg_inf
         # print(self.log_softmax(start_ffnn_output))
+        # TODO: Confirm correct dimension
         log_p1, log_p2 = self.log_softmax(start_ffnn_output), self.log_softmax(end_ffnn_output)
         out = (torch.squeeze(log_p1), torch.squeeze(log_p2))
         # print(out[0][0])
